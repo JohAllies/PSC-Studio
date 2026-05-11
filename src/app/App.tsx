@@ -1,14 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import sampleLargeUrl from "../../rework_KiwiB.json?url";
-import sampleSimpleUrl from "../../psc-simple-variable-script.json?url";
-import sampleLoopUrl from "../../psc-for-loop-log-script.json?url";
-import sampleCombatUrl from "../../psc-kill-chickens-script.json?url";
 import { MenuBar } from "../components/MenuBar";
 import { ScriptTree } from "../components/ScriptTree";
 import { Inspector } from "../components/Inspector";
 import { loadFunctionCatalog, type PscFunctionCatalog } from "../lib/psc/catalog";
 import { useSupabaseAuth } from "../lib/supabase/auth";
 import {
+  openJsonDocuments,
   openJsonDocument,
   saveJsonDocument,
   supportsNativeFileAccess,
@@ -32,26 +29,26 @@ import { useEditorStore } from "../store/editor-store";
 const samples = {
   large: {
     label: "KiwiB Stress Test",
-    url: sampleLargeUrl,
+    path: "/samples/rework_KiwiB.json",
   },
   simple: {
     label: "Simple Variables",
-    url: sampleSimpleUrl,
+    path: "/samples/psc-simple-variable-script.json",
   },
   loop: {
     label: "Loop + Logging",
-    url: sampleLoopUrl,
+    path: "/samples/psc-for-loop-log-script.json",
   },
   combat: {
     label: "Kill Chickens",
-    url: sampleCombatUrl,
+    path: "/samples/psc-kill-chickens-script.json",
   },
 } as const;
 
-const fetchSampleText = async (sampleUrl: string) => {
-  const response = await fetch(sampleUrl);
+const fetchSampleText = async (samplePath: string) => {
+  const response = await fetch(samplePath);
   if (!response.ok) {
-    throw new Error(`Unable to load bundled sample: ${sampleUrl}`);
+    throw new Error(`Unable to load bundled sample: ${samplePath}`);
   }
 
   return response.text();
@@ -65,26 +62,135 @@ type SavePromptChoice =
   | "askEveryTime"
   | "saveAs"
   | "cancel";
+type GateNotice = {
+  tone: "success" | "error";
+  text: string;
+};
+
 const SAVE_PREFERENCE_KEY = "psc-studio-save-preference";
 const WORKSPACE_SPLIT_KEY = "psc-studio-workspace-split";
 const CLOUD_STORAGE_QUOTA_LABEL = "25MB";
 
+type StatusScreenProps = {
+  eyebrow: string;
+  title: string;
+  text: string;
+  detail?: string | null;
+  actionLabel?: string;
+  onAction?: () => void;
+};
+
+const StatusScreen = ({
+  eyebrow,
+  title,
+  text,
+  detail,
+  actionLabel,
+  onAction,
+}: StatusScreenProps) => (
+  <div className="status-screen">
+    <div className="status-card">
+      <div className="status-card__eyebrow">{eyebrow}</div>
+      <h1 className="status-card__title">{title}</h1>
+      <p className="status-card__text">{text}</p>
+      {detail ? <div className="status-card__detail">{detail}</div> : null}
+      {actionLabel && onAction ? (
+        <div className="status-card__actions">
+          <button className="app-button app-button--menu app-button--accent" onClick={onAction}>
+            {actionLabel}
+          </button>
+        </div>
+      ) : null}
+    </div>
+  </div>
+);
+
+type AuthGateProps = {
+  email: string;
+  notice: GateNotice | null;
+  submitting: boolean;
+  onEmailChange: (email: string) => void;
+  onSubmit: () => Promise<void>;
+};
+
+const AuthGate = ({
+  email,
+  notice,
+  submitting,
+  onEmailChange,
+  onSubmit,
+}: AuthGateProps) => (
+  <div className="auth-screen">
+    <div className="auth-card">
+      <div className="auth-card__eyebrow">PSC Studio</div>
+      <h1 className="auth-card__title">Invite-only access</h1>
+      <p className="auth-card__text">
+        Sign in with the email address that was granted access to PSC Studio.
+      </p>
+      <p className="auth-card__meta">
+        Accounts are provisioned manually. There is no self sign-up.
+      </p>
+
+      <form
+        className="auth-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void onSubmit();
+        }}
+      >
+        <label className="field">
+          <span className="field__label">Email</span>
+          <input
+            className="editor-input"
+            value={email}
+            onChange={(event) => onEmailChange(event.target.value)}
+            placeholder="you@example.com"
+            autoComplete="email"
+          />
+        </label>
+
+        {notice ? (
+          <div
+            className={`gate-notice ${
+              notice.tone === "success" ? "gate-notice--success" : "gate-notice--error"
+            }`}
+          >
+            {notice.text}
+          </div>
+        ) : null}
+
+        <div className="auth-form__actions">
+          <button
+            className="app-button app-button--menu app-button--accent"
+            type="submit"
+            disabled={submitting}
+          >
+            {submitting ? "Sending..." : "Send magic link"}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+);
+
 export const App = () => {
   const auth = useSupabaseAuth();
+  const authUserId = auth.user?.id ?? null;
   const [catalog, setCatalog] = useState<PscFunctionCatalog>({
     available: false,
     sections: [],
   });
   const [bootState, setBootState] = useState<"loading" | "ready">("loading");
-  const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [authEmail, setAuthEmail] = useState("");
-  const [authMessage, setAuthMessage] = useState<string | null>(null);
+  const [authNotice, setAuthNotice] = useState<GateNotice | null>(null);
   const [authSubmitting, setAuthSubmitting] = useState(false);
   const [cloudLibraryOpen, setCloudLibraryOpen] = useState(false);
   const [cloudScripts, setCloudScripts] = useState<CloudScriptSummary[]>([]);
   const [cloudUsageBytes, setCloudUsageBytes] = useState(0);
   const [cloudLibraryLoading, setCloudLibraryLoading] = useState(false);
   const [cloudLibraryError, setCloudLibraryError] = useState<string | null>(null);
+  const [cloudLibraryNotice, setCloudLibraryNotice] = useState<string | null>(null);
+  const [cloudUploadSubmitting, setCloudUploadSubmitting] = useState(false);
   const [cloudSaveDialogOpen, setCloudSaveDialogOpen] = useState(false);
   const [cloudSaveName, setCloudSaveName] = useState("");
   const [cloudSaveError, setCloudSaveError] = useState<string | null>(null);
@@ -143,20 +249,47 @@ export const App = () => {
   useEffect(() => {
     let mounted = true;
 
+    if (!authUserId) {
+      setBootState("loading");
+      return () => {
+        mounted = false;
+      };
+    }
+
+    setBootState("loading");
+
     const initialize = async () => {
-      const nextCatalog = await loadFunctionCatalog();
+      try {
+        const nextCatalog = await loadFunctionCatalog();
 
-      if (!mounted) {
-        return;
+        if (!mounted) {
+          return;
+        }
+
+        setCatalog(nextCatalog);
+
+        const initialText = await fetchSampleText(samples.large.path);
+        if (!mounted) {
+          return;
+        }
+
+        const initialName = "rework_KiwiB.json";
+        loadDocument(parseDocumentText(initialText), initialName);
+        setDocumentOrigin("sample");
+      } catch {
+        if (!mounted) {
+          return;
+        }
+
+        setCatalog({
+          available: false,
+          sections: [],
+        });
+      } finally {
+        if (mounted) {
+          setBootState("ready");
+        }
       }
-
-      setCatalog(nextCatalog);
-
-      const initialText = await fetchSampleText(samples.large.url);
-      const initialName = "rework_KiwiB.json";
-      loadDocument(parseDocumentText(initialText), initialName);
-      setDocumentOrigin("sample");
-      setBootState("ready");
     };
 
     void initialize();
@@ -164,14 +297,20 @@ export const App = () => {
     return () => {
       mounted = false;
     };
-  }, [loadDocument, setDocumentOrigin]);
+  }, [authUserId, loadDocument, setDocumentOrigin]);
 
   useEffect(() => {
     if (!auth.user) {
       setCloudLibraryOpen(false);
       setCloudScripts([]);
       setCloudUsageBytes(0);
+      setCloudLibraryError(null);
+      setCloudLibraryNotice(null);
+      return;
     }
+
+    setAuthSubmitting(false);
+    setAuthNotice(null);
   }, [auth.user]);
 
   useEffect(() => {
@@ -334,6 +473,48 @@ export const App = () => {
     }
   };
 
+  const handleUploadCloudScripts = async () => {
+    const selectedFiles = await openJsonDocuments({ multiple: true });
+    if (selectedFiles.length === 0) {
+      return;
+    }
+
+    setCloudUploadSubmitting(true);
+    setCloudLibraryError(null);
+    setCloudLibraryNotice(null);
+
+    let uploadedCount = 0;
+    const failures: string[] = [];
+
+    try {
+      for (const file of selectedFiles) {
+        try {
+          parseDocumentText(file.text);
+          await createUserScript(file.fileName, file.text, getJsonSizeBytes(file.text));
+          uploadedCount += 1;
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : "Unable to upload this file.";
+          failures.push(`${file.fileName}: ${message}`);
+        }
+      }
+
+      await refreshCloudLibrary();
+
+      if (uploadedCount > 0) {
+        setCloudLibraryNotice(
+          `Uploaded ${uploadedCount} script${uploadedCount === 1 ? "" : "s"} to your cloud library.`,
+        );
+      }
+
+      if (failures.length > 0) {
+        setCloudLibraryError(failures.join(" "));
+      }
+    } finally {
+      setCloudUploadSubmitting(false);
+    }
+  };
+
   const getNodeLabel = (editorId: string) => {
     const node = nodeIndex[editorId];
     if (!node) {
@@ -394,7 +575,7 @@ export const App = () => {
       return;
     }
 
-    const sampleText = await fetchSampleText(sample.url);
+    const sampleText = await fetchSampleText(sample.path);
     loadDocument(parseDocumentText(sampleText), `${sample.label}.json`);
     setFileHandle(null);
     clearCloudSourceMetadata();
@@ -530,26 +711,29 @@ export const App = () => {
     await saveJsonDocument(documentSourceName, saveDocumentText(), null);
   };
 
-  const handleOpenAuth = () => {
-    setAuthMessage(null);
-    setAuthEmail(auth.user?.email ?? "");
-    setAuthDialogOpen(true);
-  };
-
   const handleRequestMagicLink = async () => {
     const email = authEmail.trim();
     if (!email) {
-      setAuthMessage("Enter an email address.");
+      setAuthNotice({
+        tone: "error",
+        text: "Enter the email address that was given access to PSC Studio.",
+      });
       return;
     }
 
     setAuthSubmitting(true);
-    setAuthMessage(null);
+    setAuthNotice(null);
     try {
       await auth.signInWithMagicLink(email);
-      setAuthMessage(`Magic link sent to ${email}.`);
-    } catch (error) {
-      setAuthMessage(error instanceof Error ? error.message : "Unable to send magic link.");
+      setAuthNotice({
+        tone: "success",
+        text: "If that email has access, a magic link has been sent. Check your inbox to continue.",
+      });
+    } catch {
+      setAuthNotice({
+        tone: "error",
+        text: "Unable to start sign-in right now. Try again in a moment.",
+      });
     } finally {
       setAuthSubmitting(false);
     }
@@ -559,22 +743,19 @@ export const App = () => {
     try {
       await auth.signOut();
       setCloudLibraryOpen(false);
+      setBootState("loading");
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "Unable to sign out.");
     }
   };
 
   const handleOpenCloudLibrary = async () => {
-    if (!auth.isConfigured) {
-      window.alert("Supabase is not configured.");
-      return;
-    }
-
     if (!auth.user) {
-      handleOpenAuth();
       return;
     }
 
+    setCloudLibraryError(null);
+    setCloudLibraryNotice(null);
     setCloudLibraryOpen(true);
     await refreshCloudLibrary();
   };
@@ -603,7 +784,12 @@ export const App = () => {
     }
   };
 
-  const handleDeleteCloudScript = async (scriptId: string) => {
+  const handleDeleteCloudScript = async (scriptId: string, scriptName: string) => {
+    const shouldDelete = window.confirm(`Delete "${scriptName}" from My Scripts?`);
+    if (!shouldDelete) {
+      return;
+    }
+
     try {
       await deleteUserScript(scriptId);
       if (cloudSource?.cloudScriptId === scriptId) {
@@ -621,13 +807,7 @@ export const App = () => {
   };
 
   const handleSaveToAccount = async () => {
-    if (!auth.isConfigured) {
-      window.alert("Supabase is not configured.");
-      return;
-    }
-
     if (!auth.user) {
-      handleOpenAuth();
       return;
     }
 
@@ -764,6 +944,49 @@ export const App = () => {
     }
   };
 
+  if (auth.loading) {
+    return <div className="boot-screen">Loading PSC Studio...</div>;
+  }
+
+  if (!auth.isConfigured) {
+    return (
+      <StatusScreen
+        eyebrow="Configuration required"
+        title="Supabase is not configured"
+        text="PSC Studio cannot authenticate users in this environment yet."
+        detail="Add VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY before publishing."
+      />
+    );
+  }
+
+  if (auth.error) {
+    return (
+      <StatusScreen
+        eyebrow="Authentication problem"
+        title="Unable to verify your session"
+        text="PSC Studio could not complete the Supabase authentication check."
+        detail={auth.error}
+        actionLabel="Reload page"
+        onAction={() => window.location.reload()}
+      />
+    );
+  }
+
+  if (!auth.user) {
+    return (
+      <AuthGate
+        email={authEmail}
+        notice={authNotice}
+        submitting={authSubmitting}
+        onEmailChange={(email) => {
+          setAuthEmail(email);
+          setAuthNotice(null);
+        }}
+        onSubmit={handleRequestMagicLink}
+      />
+    );
+  }
+
   if (bootState === "loading") {
     return <div className="boot-screen">Loading PSC Studio...</div>;
   }
@@ -780,15 +1003,12 @@ export const App = () => {
         sourceName={documentSourceName}
         hasCatalog={catalog.available}
         catalogSections={catalog.sections}
-        authConfigured={auth.isConfigured}
-        authLoading={auth.loading}
-        accountEmail={auth.user?.email ?? null}
+        accountEmail={auth.user.email ?? null}
         onOpenFile={() => void handleOpenFile()}
         onSaveFile={() => void handleSaveFile()}
         onSaveToAccount={() => void handleSaveToAccount()}
         onExportFile={() => void handleExport()}
         onOpenCloudLibrary={() => void handleOpenCloudLibrary()}
-        onOpenAuth={handleOpenAuth}
         onSignOut={() => void handleSignOut()}
         onLoadSample={(sampleId) => void loadSample(sampleId)}
         onInsertCatalogNode={handleInsertCatalogNode}
@@ -831,42 +1051,6 @@ export const App = () => {
         </div>
       </main>
 
-      {authDialogOpen ? (
-        <div className="modal-backdrop" onClick={() => setAuthDialogOpen(false)}>
-          <div className="save-dialog" onClick={(event) => event.stopPropagation()}>
-            <div className="save-dialog__title">Sign in to PSC Studio</div>
-            <div className="save-dialog__text">
-              Enter your email to receive a Supabase magic link.
-            </div>
-            <label className="field">
-              <span className="field__label">Email</span>
-              <input
-                className="editor-input"
-                value={authEmail}
-                onChange={(event) => setAuthEmail(event.target.value)}
-                placeholder="you@example.com"
-              />
-            </label>
-            {authMessage ? <div className="empty-state">{authMessage}</div> : null}
-            <div className="save-dialog__actions">
-              <button
-                className="app-button app-button--menu app-button--accent"
-                onClick={() => void handleRequestMagicLink()}
-                disabled={authSubmitting}
-              >
-                {authSubmitting ? "Sending..." : "Send magic link"}
-              </button>
-              <button
-                className="app-button app-button--menu app-button--ghost"
-                onClick={() => setAuthDialogOpen(false)}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
       {cloudLibraryOpen ? (
         <div className="modal-backdrop" onClick={() => setCloudLibraryOpen(false)}>
           <div className="save-dialog cloud-library-dialog" onClick={(event) => event.stopPropagation()}>
@@ -874,6 +1058,13 @@ export const App = () => {
             <div className="save-dialog__text">
               {cloudUsageBytes.toLocaleString()} bytes used of {CLOUD_STORAGE_QUOTA_LABEL}.
             </div>
+            <div className="cloud-warning">
+              Files uploaded here are not encrypted. Do not upload sensitive files or scripts you
+              do not trust the author of this site with.
+            </div>
+            {cloudLibraryNotice ? (
+              <div className="empty-state empty-state--success">{cloudLibraryNotice}</div>
+            ) : null}
             {cloudLibraryError ? <div className="empty-state">{cloudLibraryError}</div> : null}
             <div className="cloud-library">
               {cloudLibraryLoading ? (
@@ -886,7 +1077,8 @@ export const App = () => {
                     <div className="cloud-library__main">
                       <div className="cloud-library__name">{script.name}</div>
                       <div className="cloud-library__meta">
-                        {script.sizeBytes.toLocaleString()} bytes · updated {new Date(script.updatedAt).toLocaleString()}
+                        {script.sizeBytes.toLocaleString()} bytes updated{" "}
+                        {new Date(script.updatedAt).toLocaleString()}
                       </div>
                     </div>
                     <div className="cloud-library__actions">
@@ -898,7 +1090,7 @@ export const App = () => {
                       </button>
                       <button
                         className="app-button app-button--menu app-button--ghost"
-                        onClick={() => void handleDeleteCloudScript(script.id)}
+                        onClick={() => void handleDeleteCloudScript(script.id, script.name)}
                       >
                         Delete
                       </button>
@@ -909,14 +1101,23 @@ export const App = () => {
             </div>
             <div className="save-dialog__actions">
               <button
+                className="app-button app-button--menu app-button--accent"
+                onClick={() => void handleUploadCloudScripts()}
+                disabled={cloudUploadSubmitting}
+              >
+                {cloudUploadSubmitting ? "Uploading..." : "Upload JSON"}
+              </button>
+              <button
                 className="app-button app-button--menu"
                 onClick={() => void refreshCloudLibrary()}
+                disabled={cloudUploadSubmitting}
               >
                 Refresh
               </button>
               <button
                 className="app-button app-button--menu app-button--ghost"
                 onClick={() => setCloudLibraryOpen(false)}
+                disabled={cloudUploadSubmitting}
               >
                 Close
               </button>
@@ -931,6 +1132,10 @@ export const App = () => {
             <div className="save-dialog__title">Save to account</div>
             <div className="save-dialog__text">
               Save this PSC JSON document to your account as a cloud script.
+            </div>
+            <div className="cloud-warning">
+              Cloud scripts are not encrypted. Do not upload sensitive files or scripts you do not
+              trust the author of this site with.
             </div>
             <label className="field">
               <span className="field__label">Script name</span>

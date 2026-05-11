@@ -164,7 +164,7 @@ export const buildFunctionCatalog = (document: PscDocument): PscFunctionCatalog 
 
 export const loadFunctionCatalog = async (): Promise<PscFunctionCatalog> => {
   try {
-    const response = await fetch("/PSCFunctions.json", {
+    const response = await fetch("/catalog/PSCFunctions.json", {
       headers: {
         Accept: "application/json",
       },

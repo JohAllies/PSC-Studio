@@ -10,7 +10,10 @@ import {
 
 describe("PSC parser", () => {
   it("round-trips the large fixture without structural loss", () => {
-    const fixtureText = readFileSync(resolve(process.cwd(), "rework_KiwiB.json"), "utf8");
+    const fixtureText = readFileSync(
+      resolve(process.cwd(), "public", "samples", "rework_KiwiB.json"),
+      "utf8",
+    );
     const fixtureDocument = parseDocumentText(fixtureText);
     const normalized = parseDocument(fixtureDocument);
     const serializedDocument = serializeParsedDocument(normalized);

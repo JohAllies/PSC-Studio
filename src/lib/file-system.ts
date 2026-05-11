@@ -49,41 +49,60 @@ export const supportsNativeFileAccess = () =>
   typeof pickerWindow.showOpenFilePicker === "function" &&
   typeof pickerWindow.showSaveFilePicker === "function";
 
-export const openJsonDocument = async (): Promise<LoadedFile | null> => {
+type OpenJsonDocumentsOptions = {
+  multiple?: boolean;
+};
+
+export const openJsonDocuments = async ({
+  multiple = false,
+}: OpenJsonDocumentsOptions = {}): Promise<LoadedFile[]> => {
   if (supportsNativeFileAccess()) {
-    const [handle] = await pickerWindow.showOpenFilePicker?.(jsonPickerOptions) ?? [];
+    const handles = await pickerWindow.showOpenFilePicker?.({
+      ...jsonPickerOptions,
+      multiple,
+    }) ?? [];
 
-    if (!handle) {
-      return null;
-    }
-
-    const file = await handle.getFile();
-    return {
-      fileName: file.name,
-      text: await file.text(),
-      handle,
-    };
+    return Promise.all(
+      handles.map(async (handle) => {
+        const file = await handle.getFile();
+        return {
+          fileName: file.name,
+          text: await file.text(),
+          handle,
+        };
+      }),
+    );
   }
 
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = ".json,application/json";
+    input.multiple = multiple;
     input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) {
-        resolve(null);
+      const files = Array.from(input.files ?? []);
+      if (files.length === 0) {
+        resolve([]);
         return;
       }
 
-      resolve({
-        fileName: file.name,
-        text: await file.text(),
-        handle: null,
-      });
+      const loadedFiles = await Promise.all(
+        files.map(async (file) => ({
+          fileName: file.name,
+          text: await file.text(),
+          handle: null,
+        })),
+      );
+
+      resolve(loadedFiles);
     };
     input.click();
   });
+};
+
+export const openJsonDocument = async (): Promise<LoadedFile | null> => {
+  const [file] = await openJsonDocuments();
+  return file ?? null;
 };
 
 const writeToHandle = async (handle: FileSystemFileHandle, text: string) => {

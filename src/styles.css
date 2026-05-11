@@ -55,6 +55,91 @@ textarea {
   background: var(--bg);
 }
 
+.status-screen,
+.auth-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at top, rgba(11, 142, 161, 0.2), transparent 36%),
+    linear-gradient(180deg, #212121 0%, #2b2b2b 100%);
+}
+
+.status-card,
+.auth-card {
+  width: min(520px, 100%);
+  border: 1px solid #465055;
+  background: linear-gradient(180deg, rgba(49, 49, 49, 0.98), rgba(40, 40, 40, 0.98));
+  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.38);
+  padding: 28px;
+}
+
+.status-card__eyebrow,
+.auth-card__eyebrow {
+  color: #9de7f0;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.status-card__title,
+.auth-card__title {
+  margin: 12px 0 10px;
+  color: #f4f4f4;
+  font-size: clamp(1.7rem, 4vw, 2.2rem);
+  line-height: 1.08;
+}
+
+.status-card__text,
+.auth-card__text {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.96rem;
+  line-height: 1.55;
+}
+
+.status-card__detail,
+.auth-card__meta {
+  margin-top: 14px;
+  color: var(--text-dim);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.status-card__actions,
+.auth-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.auth-form {
+  margin-top: 22px;
+}
+
+.gate-notice {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid #4f585e;
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.gate-notice--success {
+  border-color: rgba(11, 142, 161, 0.8);
+  background: rgba(11, 142, 161, 0.14);
+  color: #b8eef4;
+}
+
+.gate-notice--error {
+  border-color: rgba(181, 107, 66, 0.85);
+  background: rgba(181, 107, 66, 0.12);
+  color: #ffd1b5;
+}
+
 .app-shell {
   display: flex;
   flex-direction: column;
@@ -1070,6 +1155,10 @@ body.app--resizing .workspace__splitter {
   font-size: 0.82rem;
 }
 
+.empty-state--success {
+  color: #9de7f0;
+}
+
 .dropdown-content {
   min-width: 220px;
   max-height: calc(100vh - 24px);
@@ -1202,6 +1291,13 @@ body.app--resizing .workspace__splitter {
   flex: 0 0 auto;
 }
 
+.cloud-warning {
+  margin-bottom: 14px;
+  color: #ff8f8f;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
 .type-options-dialog {
   width: min(640px, calc(100vw - 32px));
 }
@@ -1274,5 +1370,17 @@ body.app--resizing .workspace__splitter {
   .menu-bar__row {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .status-screen,
+  .auth-screen {
+    padding: 16px;
+  }
+
+  .status-card,
+  .auth-card {
+    padding: 22px 18px;
   }
 }

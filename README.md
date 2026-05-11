@@ -82,16 +82,16 @@ Each line / object is drag and droppable.
 - Move up and down
 - Moving an object onto another creates a children branch
 
-In the local project folder file there is a file called:
-PSCFunctions.json
+The production catalog lives at:
+`public/catalog/PSCFunctions.json`
 
 In this file, under each Comment segment, it will match every option available in the original software
 
 ## 5. Custom Actions
 
 Custom actions are a dynamic way to keep the UI clean.
-They can also be used as methods with the possibility of parsing parameters in
-Refer to rework_KiwiB.json
+They can also be used as methods with the possibility of parsing parameters in.
+Refer to `public/samples/rework_KiwiB.json`.
 
 Important current scope:
 
@@ -129,7 +129,7 @@ The editor should not try to be stricter than PSC itself.
 
 ## 7. Observed JSON Structure
 
-Based on `rework_KiwiB.json`, PSC scripts can contain more than one kind of top-level data.
+Based on `public/samples/rework_KiwiB.json`, PSC scripts can contain more than one kind of top-level data.
 
 Common top-level sections in that file:
 
@@ -257,7 +257,7 @@ Because of that, using a named variable for loop state is often safer than relyi
 
 ### Case and duplicate-like keys matter
 
-In `rework_KiwiB.json`, both `SKILL` and `Skill` appear in the same object.
+In `public/samples/rework_KiwiB.json`, both `SKILL` and `Skill` appear in the same object.
 
 That means PSC Studio should preserve keys exactly and avoid aggressive normalization.
 
@@ -288,7 +288,7 @@ Initial validation should be informational, not obstructive.
 
 ## 12. Reference Sample
 
-`rework_KiwiB.json` is only one PSC style, but it is a useful stress test because it includes:
+`public/samples/rework_KiwiB.json` is only one PSC style, but it is a useful stress test because it includes:
 
 - Large nested action trees
 - Heavy use of comments for grouping

@@ -15,15 +15,12 @@ type MenuBarProps = {
   sourceName: string;
   hasCatalog: boolean;
   catalogSections: PscFunctionMenuSection[];
-  authConfigured: boolean;
-  authLoading: boolean;
   accountEmail: string | null;
   onOpenFile: () => void;
   onSaveFile: () => void;
   onSaveToAccount: () => void;
   onExportFile: () => void;
   onOpenCloudLibrary: () => void;
-  onOpenAuth: () => void;
   onSignOut: () => void;
   onLoadSample: (sampleId: string) => void;
   onInsertCatalogNode: (node: PscNode) => void;
@@ -95,15 +92,12 @@ export const MenuBar = ({
   sourceName,
   hasCatalog,
   catalogSections,
-  authConfigured,
-  authLoading,
   accountEmail,
   onOpenFile,
   onSaveFile,
   onSaveToAccount,
   onExportFile,
   onOpenCloudLibrary,
-  onOpenAuth,
   onSignOut,
   onLoadSample,
   onInsertCatalogNode,
@@ -287,18 +281,10 @@ export const MenuBar = ({
           <button className="app-button app-button--menu" onClick={onExportFile}>
             Export
           </button>
-          <button
-            className="app-button app-button--menu"
-            onClick={onSaveToAccount}
-            disabled={!authConfigured || authLoading || !accountEmail}
-          >
+          <button className="app-button app-button--menu" onClick={onSaveToAccount}>
             Save to account
           </button>
-          <button
-            className="app-button app-button--menu"
-            onClick={onOpenCloudLibrary}
-            disabled={!authConfigured || authLoading || !accountEmail}
-          >
+          <button className="app-button app-button--menu" onClick={onOpenCloudLibrary}>
             My Scripts
           </button>
 
@@ -324,22 +310,14 @@ export const MenuBar = ({
           <span className={`pill pill--menu${hasCatalog ? " pill--success" : ""}`}>
             {hasCatalog ? "PSCFunctions loaded" : "Raw mode"}
           </span>
-          {!authConfigured ? (
-            <span className="pill pill--menu">Supabase not configured</span>
-          ) : authLoading ? (
-            <span className="pill pill--menu">Auth loading...</span>
-          ) : accountEmail ? (
+          {accountEmail ? (
             <>
               <span className="pill pill--menu">{accountEmail}</span>
               <button className="app-button app-button--menu" onClick={onSignOut}>
                 Sign out
               </button>
             </>
-          ) : (
-            <button className="app-button app-button--menu" onClick={onOpenAuth}>
-              Sign in
-            </button>
-          )}
+          ) : null}
         </div>
       </div>
     </header>

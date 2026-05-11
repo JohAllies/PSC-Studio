@@ -44,18 +44,32 @@ export const SupabaseAuthProvider = ({ children }: PropsWithChildren) => {
     let active = true;
 
     const bootstrap = async () => {
-      const { data, error } = await client.auth.getSession();
-      if (!active) {
-        return;
-      }
+      try {
+        const { data, error } = await client.auth.getSession();
+        if (!active) {
+          return;
+        }
 
-      setState({
-        session: data.session,
-        user: data.session?.user ?? null,
-        loading: false,
-        error: error?.message ?? null,
-        isConfigured: true,
-      });
+        setState({
+          session: data.session,
+          user: data.session?.user ?? null,
+          loading: false,
+          error: error?.message ?? null,
+          isConfigured: true,
+        });
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+
+        setState({
+          session: null,
+          user: null,
+          loading: false,
+          error: error instanceof Error ? error.message : "Unable to verify your session.",
+          isConfigured: true,
+        });
+      }
     };
 
     void bootstrap();
@@ -100,11 +114,8 @@ export const SupabaseAuthProvider = ({ children }: PropsWithChildren) => {
         });
 
         if (error) {
-          setState((current) => ({ ...current, error: error.message }));
           throw error;
         }
-
-        setState((current) => ({ ...current, error: null }));
       },
       signOut: async () => {
         const client = getSupabaseClient();

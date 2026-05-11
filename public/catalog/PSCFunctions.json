@@ -1,0 +1,663 @@
+{
+  "sleep": "500",
+  "name": "PSCFunctions",
+  "version": 1.0,
+  "actions": [
+    {
+      "id": "COMMENT",
+      "properties": {
+        "Comment": "Script"
+      },
+      "children": [
+        {
+          "id": "IF_FIRST_RUN"
+        },
+        {
+          "id": "IF_LOGGED_IN"
+        },
+        {
+          "id": "IF_NOT_LOGGED_IN"
+        },
+        {
+          "id": "IF_GAME_STATE_IS",
+          "properties": {
+            "game state": {
+              "class": "Number",
+              "operator": "EQUALS",
+              "value": ""
+            }
+          }
+        },
+        {
+          "id": "IF_GAME_MESSAGE_RECEIVED_MATCHES",
+          "properties": {
+            "Filter Message": {
+              "class": "Message",
+              "logic": "NONE",
+              "type": "NONE",
+              "operator": "EQUALS"
+            }
+          }
+        },
+        {
+          "id": "IF_BREAK_IS_PENDING"
+        },
+        {
+          "id": "IF_BREAK_IS_NOT_PENDING"
+        },
+        {
+          "id": "IF_SCHEDULED_STOP_IS_PENDING"
+        },
+        {
+          "id": "IF_SCHEDULED_STOP_IS_NOT_PENDING"
+        },
+        {
+          "id": "IF_RUNNING_VIA_PRO_TOOLS"
+        },
+        {
+          "id": "IF_GAME_TICK_CHANGED"
+        },
+        {
+          "id": "IF_RANDOM_NUMBER_IS",
+          "properties": {
+            "number": {
+              "class": "Number",
+              "operator": "EQUALS",
+              "value": ""
+            }
+          }
+        },
+        {
+          "id": "IF_TIME_IS_BETWEEN",
+          "properties": {
+            "Timezone": {
+              "class": "ZoneId",
+              "value": "Europe/Kiev"
+            }
+          }
+        },
+        {
+          "id": "IF_MOUSE_INPUT_IS_ENABLED"
+        },
+        {
+          "id": "IF_MOUSE_INPUT_IS_NOT_ENABLED"
+        },
+        {
+          "id": "IF_KEYBOARD_INPUT_IS_ENABLED"
+        },
+        {
+          "id": "IF_KEYBOARD_INPUT_IS_NOT_ENABLED"
+        },
+        {
+          "id": "COMMENT",
+          "properties": {
+            "Comment": "Disable Solver"
+          },
+          "children": [
+            {
+              "id": "DISABLE_LOGIN_SOLVER"
+            },
+            {
+              "id": "DISABLE_BREAKS"
+            },
+            {
+              "id": "DISABLE_DEATHS_DOOR"
+            },
+            {
+              "id": "DISABLE_DISMISS_SOLVER"
+            }
+          ]
+        },
+        {
+          "id": "COMMENT",
+          "properties": {
+            "Comment": "Enable solver"
+          },
+          "children": [
+            {
+              "id": "ENABLE_LOGIN_SOLVER"
+            },
+            {
+              "id": "ENABLE_BREAKS"
+            },
+            {
+              "id": "ENABLE_DEATHS_DOOR"
+            },
+            {
+              "id": "ENABLE_DISMISS_SOLVER"
+            }
+          ]
+        },
+        {
+          "id": "SHOW_DIALOG_MESSAGE"
+        },
+        {
+          "id": "SHOW_OS_NOTIFICATION"
+        },
+        {
+          "id": "BROWSE_URL"
+        },
+        {
+          "id": "COMMENT"
+        },
+        {
+          "id": "CHANGE_SCRIPT"
+        },
+        {
+          "id": "CHANGE_DREAMBOT_SCRIPT"
+        },
+        {
+          "id": "START_DREAMBOT_SCHEDULE"
+        },
+        {
+          "id": "SCRIPT_ON_EXIT"
+        },
+        {
+          "id": "STOP_SCRIPT"
+        },
+        {
+          "id": "STOP_PANDEMICS_SCRIPT_CREATOR"
+        },
+        {
+          "id": "CLOSE_DREAMBOT_CLIENT"
+        },
+        {
+          "id": "CREATE_LABEL"
+        },
+        {
+          "id": "GO_TO_LABEL"
+        },
+        {
+          "id": "RETURN_TO_START_OF_SCRIPT"
+        },
+        {
+          "id": "BLOCK_SCHEDULED_STOP"
+        },
+        {
+          "id": "ALLOW_SCHEDULED_STOP"
+        },
+        {
+          "id": "PAUSE_ITEM_TRACKER"
+        },
+        {
+          "id": "RESUME_ITEM_TRACKER"
+        },
+        {
+          "id": "LOGOUT"
+        },
+        {
+          "id": "ENABLE_MOUSE_INPUT"
+        },
+        {
+          "id": "DISABLE_MOUSE_INPUT"
+        },
+        {
+          "id": "ENABLE_KEYBOARD_INPUT"
+        },
+        {
+          "id": "DISABLE_KEYBOARD_INPUT"
+        }
+      ]
+    },
+    {
+      "id": "COMMENT",
+      "properties": {
+        "Comment": "Logic"
+      },
+      "children": [
+        {
+          "id": "ELSE_BRANCH"
+        },
+        {
+          "id": "OR_BRANCH"
+        },
+        {
+          "id": "AND_BRANCH"
+        }
+      ]
+    },
+    {
+      "id": "COMMENT",
+      "properties": {
+        "Comment": "Loops"
+      },
+      "children": [
+        {
+          "id": "WHILE_VARIABLE_MATCHES",
+          "properties": {
+            "Filter Value By": {
+              "class": "Variable",
+              "logic": "NONE",
+              "type": "AS_TEXT",
+              "operator": "EQUALS"
+            }
+          }
+        },
+        {
+          "id": "WHILE_VARIABLE_DOES_NOT_MATCH",
+          "properties": {
+            "Filter Value By": {
+              "class": "Variable",
+              "logic": "NONE",
+              "type": "AS_TEXT",
+              "operator": "EQUALS"
+            }
+          }
+        },
+        {
+          "id": "WHILE_VALUE_MATCHES",
+          "properties": {
+            "Filter Value By": {
+              "class": "Variable",
+              "logic": "NONE",
+              "type": "AS_TEXT",
+              "operator": "EQUALS"
+            }
+          }
+        },
+        {
+          "id": "WHILE_VALUE_DOES_NOT_MATCH",
+          "properties": {
+            "Filter Value By": {
+              "class": "Variable",
+              "logic": "NONE",
+              "type": "AS_TEXT",
+              "operator": "EQUALS"
+            }
+          }
+        },
+        {
+          "id": "WHILE_TIMER_IS_RUNNING"
+        },
+        {
+          "id": "FOR_EACH_NUMBER_IN_RANGE"
+        },
+        {
+          "id": "FOR_EACH_IN_LIST"
+        },
+        {
+          "id": "FOR_EACH_KEY_IN_MAP"
+        },
+        {
+          "id": "CONTINUE_LOOP"
+        },
+        {
+          "id": "BREAK_OUT_OF_LOOP"
+        }
+      ]
+    },
+    {
+      "id": "COMMENT",
+      "properties": {
+        "Comment": "Variables"
+      },
+      "children": [
+        {
+          "id": "IF_VARIABLE_IS_SET"
+        },
+        {
+          "id": "IF_VARIABLE_IS_NOT_SET"
+        },
+        {
+          "id": "IF_VARIABLE_IS",
+          "properties": {
+            "Filter Value By": {
+              "class": "Variable",
+              "logic": "NONE",
+              "type": "AS_TEXT",
+              "operator": "EQUALS"
+            }
+          }
+        },
+        {
+          "id": "IF_VARIABLE_HAS_CHANGED"
+        },
+        {
+          "id": "IF_VARIABLE_IS_NOT",
+          "properties": {
+            "Filter Value By": {
+              "class": "Variable",
+              "logic": "NONE",
+              "type": "AS_TEXT",
+              "operator": "EQUALS"
+            }
+          }
+        },
+        {
+          "id": "IF_VALUE_IS",
+          "properties": {
+            "Filter By": {
+              "class": "Variable",
+              "logic": "NONE",
+              "type": "AS_TEXT",
+              "operator": "EQUALS"
+            }
+          }
+        },
+        {
+          "id": "IF_VALUE_IS_NOT",
+          "properties": {
+            "Filter By": {
+              "class": "Variable",
+              "logic": "NONE",
+              "type": "AS_TEXT",
+              "operator": "EQUALS"
+            }
+          }
+        },
+        {
+          "id": "COMMENT",
+          "properties": {
+            "Comment": "Set variable to"
+          },
+          "children": [
+            {
+              "id": "SET_VARIABLE"
+            },
+            {
+              "id": "SET_VARIABLE_TO_VARIABLES_JSON"
+            },
+            {
+              "id": "SET_VARIABLE_TO_RANDOM"
+            },
+            {
+              "id": "SET_VARIABLE_TO_GAUSSIAN_RANDOM"
+            },
+            {
+              "id": "SET_VARIABLE_TO_FILE_TEXT"
+            },
+            {
+              "id": "SET_VARIABLE_TO_LAST_OUTPUT"
+            },
+            {
+              "id": "SET_VARIABLE_TO_PARAMETER"
+            },
+            {
+              "id": "SET_VARIABLE_TO_VARIABLE_VALUE"
+            },
+            {
+              "id": "SET_VARIABLE_TO_GAME_TICK"
+            },
+            {
+              "id": "SET_VARIABLE_TO_CURRENT_TIME"
+            },
+            {
+              "id": "SET_VARIABLE_TO_DAY_OF_WEEK"
+            },
+            {
+              "id": "SET_VARIABLE_TO_SCRIPT_RUNTIME"
+            },
+            {
+              "id": "SET_VARIABLE_TO_TRANSLATED_TILE"
+            },
+            {
+              "id": "SET_VARIABLE_TO_DESTINATION"
+            },
+            {
+              "id": "SET_VARIABLE_TO_BASE_X"
+            },
+            {
+              "id": "SET_VARIABLE_TO_BASE_Y"
+            },
+            {
+              "id": "SET_VARIABLE_TO_REGION_ID"
+            },
+            {
+              "id": "SET_VARIABLE_TO_CURRENT_WORLD"
+            },
+            {
+              "id": "SET_TO_SOCKET_LAST_CONNECTED_IP"
+            },
+            {
+              "id": "COMMENT",
+              "properties": {
+                "Comment": "Area"
+              },
+              "children": [
+                {
+                  "id": "SET_TO_AREA_AROUND_TILE"
+                },
+                {
+                  "id": "SET_TO_RANDOM_TILE_IN_AREA"
+                },
+                {
+                  "id": "SET_TO_CENTER_TILE_OF_AREA"
+                }
+              ]
+            },
+            {
+              "id": "COMMENT",
+              "properties": {
+                "Comment": "Bitwise Operation"
+              },
+              "children": [
+                {
+                  "id": "SET_TO_BITWISE_AND"
+                },
+                {
+                  "id": "SET_TO_BITWISE_LEFT_SHIFT"
+                },
+                {
+                  "id": "SET_TO_BITWISE_RIGHT_SHIFT"
+                },
+                {
+                  "id": "SET_TO_BITWISE_OR"
+                }
+              ]
+            },
+            {
+              "id": "COMMENT",
+              "properties": {
+                "Comment": "Camera"
+              },
+              "children": [
+                {
+                  "id": "SET_VARIABLE_TO_ZOOM"
+                },
+                {
+                  "id": "SET_VARIABLE_TO_YAW"
+                },
+                {
+                  "id": "SET_VARIABLE_TO_PITCH"
+                },
+                {
+                  "id": "SET_VARIABLE_TO_MAX_ZOOM"
+                }
+              ]
+            },
+            {
+              "id": "COMMENT",
+              "properties": {
+                "Comment": "ChatGPT"
+              },
+              "children": [
+                {
+                  "id": "SET_VARIABLE_TO_CHATGPT_RESPONSE",
+                  "properties": {
+                    "Model": {
+                      "enum": "GPTModel",
+                      "value": "GPT_3_TURBO"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "id": "COMMENT",
+              "properties": {
+                "Comment": "Client"
+              },
+              "children": [
+                {
+                  "id": "SET_VARIABLE_TO_CANVAS_HEIGHT"
+                },
+                {
+                  "id": "SET_VARIABLE_TO_CANVAS_WIDTH"
+                },
+                {
+                  "id": "SET_VARIABLE_TO_DREAMBOT_MEMBER_ID"
+                },
+                {
+                  "id": "SET_VARIABLE_TO_DREAMBOT_USERNAME"
+                },
+                {
+                  "id": "SET_TO_CLIENT_ACCOUNT_NICKNAME"
+                },
+                {
+                  "id": "SET_VARIABLE_TO_MOUSE_SPEED"
+                },
+                {
+                  "id": "SET_TO_CLIENT_ACCOUNT_NICKNAME"
+                },
+                {
+                  "id": "SET_VARIABLE_TO_CLIENT_FPS"
+                },
+                {
+                  "id": "SET_TO_CLIENT_ACCOUNT_USERNAME"
+                }
+              ]
+            },
+            {
+              "id": "COMMENT",
+              "properties": {
+                "Comment": "Config"
+              },
+              "children": [
+                {
+                  "id": "SET_VARIABLE_TO_VARBIT"
+                },
+                {
+                  "id": "SET_VARIABLE_TO_PLAYER_SETTING"
+                }
+              ]
+            },
+            {
+              "id": "COMMENT",
+              "properties": {
+                "Comment": "Discord"
+              },
+              "children": [
+                {
+                  "id": "SET_VARIABLE_TO_DISCORD_WEBHOOK"
+                }
+              ]
+            },
+            {
+              "id": "COMMENT",
+              "properties": {
+                "Comment": "Hint Arrow"
+              },
+              "children": [
+                {
+                  "id": "SET_TO_HINT_ARROW_CHARACTER"
+                },
+                {
+                  "id": "SET_TO_HINT_ARROW_TILE"
+                }
+              ]
+            },
+            {
+              "id": "COMMENT",
+              "properties": {
+                "Comment": "Item"
+              },
+              "children": [
+                {
+                  "id": "SET_TO_ITEM_NAME"
+                },
+                {
+                  "id": "SET_TO_ITEM_LIVE_PRICE"
+                },
+                {
+                  "id": "SET_TO_ITEM_LIVE_PRICE_NAME"
+                },
+                {
+                  "id": "SET_TO_ITEM_SHOP_PRICE"
+                },
+                {
+                  "id": "SET_TO_ITEM_HIGH_ALCH_PRICE"
+                },
+                {
+                  "id": "SET_TO_ITEM_LOW_ALCH_PRICE"
+                }
+              ]
+            },
+            {
+              "id": "COMMENT",
+              "properties": {
+                "Comment": "Last Matching"
+              },
+              "children": [
+                {
+                  "id": "COMMENT",
+                  "properties": {
+                    "Comment": "Entity"
+                  },
+                  "children": [
+                    {
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_ID"
+                    },
+                    {
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_NAME"
+                    },
+                    {
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_LEVEL"
+                    },
+                    {
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_INDEX"
+                    },
+                    {
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_HEALTH_PERCENTAGE"
+                    },
+                    {
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_TILE"
+                    },
+                    {
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_SERVER_TILE"
+                    },
+                    {
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_Y"
+                    },
+                    {
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_X"
+                    },
+                    {
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_Z"
+                    },
+                    {
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_GRID_Y"
+                    },
+                    {
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_GRID_X"
+                    },
+                    {
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_ORIENTATION"
+                    },
+                    {
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_ANIMATION_ID"
+                    },
+                    {
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_HEIGHT"
+                    },
+                    {
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_SIZE"
+                    },
+                    {
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_OVERHEAD_ICON"
+                    },
+                    {
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_OVERHEAD_TEXT"
+                    },
+                    {
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_SKULL_ICON"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
