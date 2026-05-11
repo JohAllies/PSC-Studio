@@ -1,0 +1,22 @@
+{
+  "sleep": "0",
+  "name": "Simple Variable Test",
+  "version": 1.0,
+  "actions": [
+    {
+      "id": "IF_VARIABLE_IS_NOT_SET",
+      "properties": {
+        "Variable name": "myVariable"
+      },
+      "children": [
+        {
+          "id": "SET_VARIABLE",
+          "properties": {
+            "Value": "itIsSet",
+            "Variable name": "myVariable"
+          }
+        }
+      ]
+    }
+  ]
+}
