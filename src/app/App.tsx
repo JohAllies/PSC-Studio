@@ -47,33 +47,15 @@ import type { CloudScriptSummary } from "../lib/supabase/types";
 import type { PscNode } from "../types/psc";
 import { useEditorStore } from "../store/editor-store";
 
-const samples = {
-  large: {
-    label: "KiwiB Stress Test",
-    path: "/samples/rework_KiwiB.json",
-  },
-  simple: {
-    label: "Simple Variables",
-    path: "/samples/psc-simple-variable-script.json",
-  },
-  loop: {
-    label: "Loop + Logging",
-    path: "/samples/psc-for-loop-log-script.json",
-  },
-  combat: {
-    label: "Kill Chickens",
-    path: "/samples/psc-kill-chickens-script.json",
-  },
-} as const;
-
-const fetchSampleText = async (samplePath: string) => {
-  const response = await fetch(samplePath);
-  if (!response.ok) {
-    throw new Error(`Unable to load bundled sample: ${samplePath}`);
-  }
-
-  return response.text();
-};
+const createInitialDocument = () =>
+  ({
+    sleep: "0",
+    name: "Untitled PSC Script",
+    version: 1.0,
+    actions: [],
+    customActions: {},
+    images: {},
+  }) satisfies Parameters<ReturnType<typeof useEditorStore.getState>["loadDocument"]>[0];
 
 const sanitizeCustomActionFileName = (value: string, fallbackId: string) => {
   const base = value
@@ -504,14 +486,8 @@ export const App = () => {
 
         setCatalog(nextCatalog);
 
-        const initialText = await fetchSampleText(samples.large.path);
-        if (!mounted) {
-          return;
-        }
-
-        const initialName = "rework_KiwiB.json";
-        loadDocument(parseDocumentText(initialText), initialName);
-        setDocumentOrigin("sample");
+        loadDocument(createInitialDocument(), "Untitled PSC Script");
+        setDocumentOrigin("unsaved");
       } catch {
         if (!mounted) {
           return;

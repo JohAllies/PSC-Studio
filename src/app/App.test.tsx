@@ -238,9 +238,15 @@ describe("App authentication gate", () => {
     expect(screen.getByTestId("script-tree")).toBeInTheDocument();
     expect(screen.getByTestId("inspector")).toBeInTheDocument();
     expect(screen.queryByText("Invite-only access")).not.toBeInTheDocument();
-    expect(global.fetch).toHaveBeenCalledWith("/samples/rework_KiwiB.json");
-    expect(loadDocument).toHaveBeenCalled();
-    expect(setDocumentOrigin).toHaveBeenCalledWith("sample");
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(loadDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Untitled PSC Script",
+        actions: [],
+      }),
+      "Untitled PSC Script",
+    );
+    expect(setDocumentOrigin).toHaveBeenCalledWith("unsaved");
   });
 
   it("uploads selected JSON scripts from the cloud library", async () => {
