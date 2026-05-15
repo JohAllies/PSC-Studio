@@ -24,6 +24,59 @@ const defaultState: AuthState = {
   isConfigured: isSupabaseConfigured(),
 };
 
+const AUTH_HASH_KEYS = new Set([
+  "access_token",
+  "refresh_token",
+  "expires_at",
+  "expires_in",
+  "token_type",
+  "type",
+  "error",
+  "error_code",
+  "error_description",
+  "provider_token",
+  "provider_refresh_token",
+  "code",
+  "sb",
+]);
+
+const AUTH_QUERY_KEYS = new Set([
+  "code",
+  "error",
+  "error_code",
+  "error_description",
+  "sb",
+]);
+
+export const sanitizeAuthUrl = () => {
+  const url = new URL(window.location.href);
+  let changed = false;
+
+  const hash = url.hash.startsWith("#") ? url.hash.slice(1) : url.hash;
+  if (hash.length > 0) {
+    const hashParams = new URLSearchParams(hash);
+    const keys = [...hashParams.keys()];
+    if (keys.some((key) => AUTH_HASH_KEYS.has(key))) {
+      url.hash = "";
+      changed = true;
+    }
+  }
+
+  AUTH_QUERY_KEYS.forEach((key) => {
+    if (url.searchParams.has(key)) {
+      url.searchParams.delete(key);
+      changed = true;
+    }
+  });
+
+  if (!changed) {
+    return;
+  }
+
+  const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+  window.history.replaceState(window.history.state, document.title, nextUrl);
+};
+
 export const SupabaseAuthProvider = ({ children }: PropsWithChildren) => {
   const [state, setState] = useState<AuthState>(defaultState);
 
@@ -57,6 +110,7 @@ export const SupabaseAuthProvider = ({ children }: PropsWithChildren) => {
           error: error?.message ?? null,
           isConfigured: true,
         });
+        sanitizeAuthUrl();
       } catch (error) {
         if (!active) {
           return;
@@ -69,6 +123,7 @@ export const SupabaseAuthProvider = ({ children }: PropsWithChildren) => {
           error: error instanceof Error ? error.message : "Unable to verify your session.",
           isConfigured: true,
         });
+        sanitizeAuthUrl();
       }
     };
 
@@ -89,6 +144,7 @@ export const SupabaseAuthProvider = ({ children }: PropsWithChildren) => {
         error: null,
         isConfigured: true,
       }));
+      sanitizeAuthUrl();
     });
 
     return () => {

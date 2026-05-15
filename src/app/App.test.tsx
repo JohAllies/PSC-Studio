@@ -89,13 +89,19 @@ vi.mock("../lib/psc/catalog", () => ({
 
 vi.mock("../lib/psc/parse", () => ({
   parseDocumentText: (...args: unknown[]) => parseDocumentText(...args),
+  serializeCustomActionEntity: vi.fn(),
 }));
 
 vi.mock("../lib/file-system", () => ({
   openJsonDocuments: (...args: unknown[]) => openJsonDocuments(...args),
   openJsonDocument: vi.fn(),
+  openJsonDirectory: vi.fn(),
+  readJsonDirectory: vi.fn(),
   saveJsonDocument: vi.fn(),
   supportsNativeFileAccess: vi.fn(() => true),
+  supportsNativeDirectoryAccess: vi.fn(() => true),
+  writeJsonFileInDirectory: vi.fn(),
+  writeTextToFileHandle: vi.fn(),
 }));
 
 vi.mock("../lib/supabase/scripts", () => ({

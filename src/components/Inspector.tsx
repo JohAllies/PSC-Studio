@@ -10,6 +10,8 @@ import {
   type TypeOption,
   type TypeOptionRegistry,
 } from "../lib/psc/type-option-registry";
+import type { EffectiveCustomActionSource } from "../lib/psc/local-custom-actions";
+import type { EditorCustomActionEntity } from "../lib/psc/parse";
 
 const buildImageSrc = (asset: string) =>
   asset.startsWith("data:") ? asset : `data:image/png;base64,${asset}`;
@@ -382,101 +384,6 @@ type PropertyFieldsEditorProps = {
   onManageTypeOptions: (targetKey: string, title: string) => void;
 };
 
-type TemporarySchemaField = {
-  id: string;
-  name: string;
-};
-
-const createTemporarySchemaField = (): TemporarySchemaField => ({
-  id: `schema_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-  name: "",
-});
-
-const EmptyPropertySchemaBuilder = ({
-  onApply,
-}: {
-  onApply: (nextProperties: Record<string, unknown>) => void;
-}) => {
-  const [fields, setFields] = useState<TemporarySchemaField[]>([createTemporarySchemaField()]);
-
-  const updateField = (
-    fieldId: string,
-    updates: Partial<Pick<TemporarySchemaField, "name">>,
-  ) => {
-    setFields((current) =>
-      current.map((field) => (field.id === fieldId ? { ...field, ...updates } : field)),
-    );
-  };
-
-  const addField = () => {
-    setFields((current) => [...current, createTemporarySchemaField()]);
-  };
-
-  const removeField = (fieldId: string) => {
-    setFields((current) =>
-      current.length > 1
-        ? current.filter((field) => field.id !== fieldId)
-        : [createTemporarySchemaField()],
-    );
-  };
-
-  const applySchema = () => {
-    const nextProperties: Record<string, unknown> = {};
-
-    fields.forEach((field) => {
-      const key = field.name.trim();
-      if (!key || key in nextProperties) {
-        return;
-      }
-
-      nextProperties[key] = "";
-    });
-
-    if (Object.keys(nextProperties).length === 0) {
-      return;
-    }
-
-    onApply(nextProperties);
-  };
-
-  return (
-    <div className="schema-builder">
-      <div className="schema-builder__text">
-        This node has no properties yet. Add the property names you want to seed, and PSC can treat the values as strings.
-      </div>
-
-      <div className="schema-builder__list">
-        {fields.map((field) => (
-          <div key={field.id} className="schema-builder__row">
-            <input
-              className="editor-input schema-builder__name"
-              placeholder="Property name"
-              value={field.name}
-              onChange={(event) => updateField(field.id, { name: event.target.value })}
-            />
-            <button
-              className="app-button app-button--ghost schema-builder__remove"
-              type="button"
-              onClick={() => removeField(field.id)}
-            >
-              Remove
-            </button>
-          </div>
-        ))}
-      </div>
-
-      <div className="schema-builder__actions">
-        <button className="app-button app-button--ghost" type="button" onClick={addField}>
-          Add field
-        </button>
-        <button className="app-button app-button--accent" type="button" onClick={applySchema}>
-          Create schema
-        </button>
-      </div>
-    </div>
-  );
-};
-
 const PropertyValueField = ({
   draftScope,
   typeRegistryKey,
@@ -618,7 +525,7 @@ const PropertyFieldsEditor = ({
 
       <div className="properties-editor__list">
         {propertyEntries.length === 0 ? (
-          <EmptyPropertySchemaBuilder onApply={onChange} />
+          <div className="empty-state">No properties for this node.</div>
         ) : (
           propertyEntries.map(([propertyKey, value]) => (
             <PropertyValueField
@@ -639,10 +546,14 @@ const PropertyFieldsEditor = ({
   );
 };
 
-export const Inspector = () => {
+type InspectorProps = {
+  customActions: Record<string, EditorCustomActionEntity>;
+  customActionSources: Record<string, EffectiveCustomActionSource>;
+};
+
+export const Inspector = ({ customActions, customActionSources }: InspectorProps) => {
   const selection = useEditorStore((state) => state.selection);
   const nodeIndex = useEditorStore((state) => state.nodeIndex);
-  const customActions = useEditorStore((state) => state.customActions);
   const topLevelFields = useEditorStore((state) => state.topLevelFields);
   const images = useEditorStore((state) => state.images);
   const updateNodeProperties = useEditorStore((state) => state.updateNodeProperties);
@@ -962,6 +873,74 @@ export const Inspector = () => {
 
   if (selection.kind === "customAction") {
     const action = customActions[selection.customActionId];
+    const sourceInfo = customActionSources[selection.customActionId];
+
+    if (!action) {
+      return (
+        <section className="panel panel--inspector">
+          <div className="panel__header">
+            <div>
+              <div className="panel__title">Custom Action Inspector</div>
+              <div className="panel__subtitle">{selection.customActionId}</div>
+            </div>
+          </div>
+          <div className="inspector-scroll">
+            <div className="empty-state">Custom action is not available in the current registry.</div>
+          </div>
+        </section>
+      );
+    }
+
+    if (sourceInfo?.source === "local") {
+      return (
+        <section className="panel panel--inspector">
+          <div className="panel__header">
+            <div>
+              <div className="panel__title">Custom Action Inspector</div>
+              <div className="panel__subtitle">{selection.customActionId}</div>
+            </div>
+          </div>
+
+          <div className="inspector-scroll">
+            <div className="inspector-note">
+              {sourceInfo.overridesEmbedded
+                ? "Local file override is active for this custom action."
+                : "This custom action is loaded from a local folder."}
+            </div>
+            {sourceInfo.relativePath ? (
+              <div className="inspector-note inspector-note--subtle">
+                Source: {sourceInfo.relativePath}
+              </div>
+            ) : null}
+
+            <label className="field property-row__field">
+              <span className="field__label">Name</span>
+              <input className="editor-input" value={String(action.raw.name ?? "")} readOnly />
+            </label>
+
+            {Object.entries(action.raw).map(([field, value]) => {
+              if (field === "id" || field === "name") {
+                return null;
+              }
+
+              return (
+                <label key={field} className="field property-row__field">
+                  <span className="field__label">{field}</span>
+                  <textarea
+                    className="editor-input"
+                    value={
+                      typeof value === "string" ? value : JSON.stringify(value, null, 2)
+                    }
+                    readOnly
+                    rows={field === "description" ? 3 : 6}
+                  />
+                </label>
+              );
+            })}
+          </div>
+        </section>
+      );
+    }
 
     return (
       <>

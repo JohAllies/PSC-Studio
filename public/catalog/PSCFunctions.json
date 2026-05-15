@@ -489,7 +489,10 @@
               },
               "children": [
                 {
-                  "id": "SET_VARIABLE_TO_CANVAS_HEIGHT"
+                  "id": "SET_VARIABLE_TO_CANVAS_HEIGHT",
+                  "properties": {
+                    "Variable name": "1"
+                  }
                 },
                 {
                   "id": "SET_VARIABLE_TO_CANVAS_WIDTH"
@@ -524,10 +527,18 @@
               },
               "children": [
                 {
-                  "id": "SET_VARIABLE_TO_VARBIT"
+                  "id": "SET_VARIABLE_TO_VARBIT",
+                  "properties": {
+                    "Varbit": "",
+                    "Variable name": ""
+                  }
                 },
                 {
-                  "id": "SET_VARIABLE_TO_PLAYER_SETTING"
+                  "id": "SET_VARIABLE_TO_PLAYER_SETTING",
+                  "properties": {
+                    "Variable name": "",
+                    "Player Setting": ""
+                  }
                 }
               ]
             },
@@ -595,61 +606,751 @@
                   },
                   "children": [
                     {
-                      "id": "SET_TO_LAST_MATCHING_ENTITY_ID"
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_ID",
+                      "properties": {
+                        "Variable name": ""
+                      }
                     },
                     {
-                      "id": "SET_TO_LAST_MATCHING_ENTITY_NAME"
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_NAME",
+                      "properties": {
+                        "Variable name": ""
+                      }
                     },
                     {
-                      "id": "SET_TO_LAST_MATCHING_ENTITY_LEVEL"
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_LEVEL",
+                      "properties": {
+                        "Variable name": ""
+                      }
                     },
                     {
-                      "id": "SET_TO_LAST_MATCHING_ENTITY_INDEX"
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_INDEX",
+                      "properties": {
+                        "Variable name": ""
+                      }
                     },
                     {
-                      "id": "SET_TO_LAST_MATCHING_ENTITY_HEALTH_PERCENTAGE"
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_HEALTH_PERCENTAGE",
+                      "properties": {
+                        "Variable name": ""
+                      }
                     },
                     {
-                      "id": "SET_TO_LAST_MATCHING_ENTITY_TILE"
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_TILE",
+                      "properties": {
+                        "Variable name": ""
+                      }
                     },
                     {
-                      "id": "SET_TO_LAST_MATCHING_ENTITY_SERVER_TILE"
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_SERVER_TILE",
+                      "properties": {
+                        "Variable name": ""
+                      }
                     },
                     {
-                      "id": "SET_TO_LAST_MATCHING_ENTITY_Y"
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_Y",
+                      "properties": {
+                        "Variable name": ""
+                      }
                     },
                     {
-                      "id": "SET_TO_LAST_MATCHING_ENTITY_X"
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_X",
+                      "properties": {
+                        "Variable name": ""
+                      }
                     },
                     {
-                      "id": "SET_TO_LAST_MATCHING_ENTITY_Z"
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_Z",
+                      "properties": {
+                        "Variable name": ""
+                      }
                     },
                     {
-                      "id": "SET_TO_LAST_MATCHING_ENTITY_GRID_Y"
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_GRID_Y",
+                      "properties": {
+                        "Variable name": ""
+                      }
                     },
                     {
-                      "id": "SET_TO_LAST_MATCHING_ENTITY_GRID_X"
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_GRID_X",
+                      "properties": {
+                        "Variable name": ""
+                      }
                     },
                     {
-                      "id": "SET_TO_LAST_MATCHING_ENTITY_ORIENTATION"
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_ORIENTATION",
+                      "properties": {
+                        "Variable name": ""
+                      }
                     },
                     {
-                      "id": "SET_TO_LAST_MATCHING_ENTITY_ANIMATION_ID"
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_ANIMATION_ID",
+                      "properties": {
+                        "Variable name": ""
+                      }
                     },
                     {
-                      "id": "SET_TO_LAST_MATCHING_ENTITY_HEIGHT"
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_HEIGHT",
+                      "properties": {
+                        "Variable name": ""
+                      }
                     },
                     {
-                      "id": "SET_TO_LAST_MATCHING_ENTITY_SIZE"
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_SIZE",
+                      "properties": {
+                        "Variable name": ""
+                      }
                     },
                     {
-                      "id": "SET_TO_LAST_MATCHING_ENTITY_OVERHEAD_ICON"
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_OVERHEAD_ICON",
+                      "properties": {
+                        "Variable name": ""
+                      }
                     },
                     {
-                      "id": "SET_TO_LAST_MATCHING_ENTITY_OVERHEAD_TEXT"
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_OVERHEAD_TEXT",
+                      "properties": {
+                        "Variable name": ""
+                      }
                     },
                     {
-                      "id": "SET_TO_LAST_MATCHING_ENTITY_SKULL_ICON"
+                      "id": "SET_TO_LAST_MATCHING_ENTITY_SKULL_ICON",
+                      "properties": {
+                        "Variable name": ""
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "COMMENT",
+                  "properties": {
+                    "Comment": "Item"
+                  },
+                  "children": [
+                    {
+                      "id": "SET_TO_LAST_MATCHING_ITEM_ID",
+                      "properties": {
+                        "Variable name": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_LAST_MATCHING_ITEM_NAME",
+                      "properties": {
+                        "Variable name": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_LAST_MATCHING_ITEM_LIVE_PRICE",
+                      "properties": {
+                        "Variable name": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_LAST_MATCHING_ITEM_AMOUNT",
+                      "properties": {
+                        "Variable name": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_LAST_MATCHING_ITEM_SHOP_PRICE",
+                      "properties": {
+                        "Variable name": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_LAST_MATCHING_ITEM_LOW_ALCH_PRICE",
+                      "properties": {
+                        "Variable name": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_LAST_MATCHING_ITEM_HIGH_ALCH_PRICE",
+                      "properties": {
+                        "Variable name": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_LAST_MATCHING_ITEM_SLOT",
+                      "properties": {
+                        "Variable name": ""
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "COMMENT",
+                  "properties": {
+                    "Comment": "Widget"
+                  },
+                  "children": [
+                    {
+                      "id": "SET_TO_WIDGET_TEXT",
+                      "properties": {
+                        "Variable name": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_WIDGET_NUMBER_IN_TEXT",
+                      "properties": {
+                        "Variable name": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_WIDGET_TEXT_COLOR",
+                      "properties": {
+                        "Variable name": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_WIDGET_NAME",
+                      "properties": {
+                        "Variable name": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_WIDGET_X",
+                      "properties": {
+                        "Variable name": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_WIDGET_Y",
+                      "properties": {
+                        "Variable name": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_WIDGET_WIDTH",
+                      "properties": {
+                        "Variable name": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_WIDGET_HEIGHT",
+                      "properties": {
+                        "Variable name": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_WIDGET_PARENT_ID",
+                      "properties": {
+                        "Variable name": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_WIDGET_TEXTURE_ID",
+                      "properties": {
+                        "Variable name": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_WIDGET_TYPE",
+                      "properties": {
+                        "Variable name": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_WIDGET_ITEM_ID",
+                      "properties": {
+                        "Variable name": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_WIDGET_ITEM_AMOUNT",
+                      "properties": {
+                        "Variable name": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_WIDGET_DISABLED_MEDIA_TYPE",
+                      "properties": {
+                        "Variable name": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_WIDGET_ENABLED_MEDIA_TYPE",
+                      "properties": {
+                        "Variable name": ""
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "COMMENT",
+              "properties": {
+                "Comment": "Local player"
+              },
+              "children": [
+                {
+                  "id": "SET_VARIABLE_TO_LOCAL_NAME"
+                },
+                {
+                  "id": "SET_TO_LOCAL_PLAYER"
+                },
+                {
+                  "id": "SET_VARIABLE_TO_LOCAL_HEALTH_PERCENTAGE"
+                },
+                {
+                  "id": "SET_VARIABLE_TO_LOCAL_TILE"
+                },
+                {
+                  "id": "SET_VARIABLE_TO_LOCAL_SERVER_TILE"
+                },
+                {
+                  "id": "SET_VARIABLE_TO_LOCAL_X"
+                },
+                {
+                  "id": "SET_VARIABLE_TO_LOCAL_Y"
+                },
+                {
+                  "id": "SET_VARIABLE_TO_LOCAL_Z"
+                },
+                {
+                  "id": "SET_VARIABLE_TO_LOCAL_ORIENTATION"
+                },
+                {
+                  "id": "SET_TO_LOCAL_PLAYER_ANIMATION"
+                },
+                {
+                  "id": "SET_TO_LOCAL_PLAYER_COMBAT_LEVEL"
+                },
+                {
+                  "id": "SET_TO_LOCAL_PLAYER_REAL_SKILL_LEVEL",
+                  "properties": {
+                    "Skill": {
+                      "class": "Skill",
+                      "value": "AGILITY"
+                    }
+                  }
+                },
+                {
+                  "id": "SET_TO_LOCAL_PLAYER_EXPERIENCE",
+                  "properties": {
+                    "Skill": {
+                      "class": "Skill",
+                      "value": "AGILITY"
+                    }
+                  }
+                },
+                {
+                  "id": "SET_TO_LOCAL_PLAYER_BOOSTED_SKILL_LEVEL",
+                  "properties": {
+                    "Skill": {
+                      "class": "Skill",
+                      "value": "AGILITY"
+                    }
+                  }
+                },
+                {
+                  "id": "SET_TO_LAST_EXPERIENCE_GAIN",
+                  "properties": {
+                    "Skill": {
+                      "class": "Skill",
+                      "value": "ATTACK"
+                    },
+                    "Variable name": ""
+                  }
+                },
+                {
+                  "id": "SET_TO_EXPERIENCE_UNTIL_LEVEL",
+                  "properties": {
+                    "Skill": {
+                      "class": "Skill",
+                      "value": "AGILITY"
+                    }
+                  }
+                },
+                {
+                  "id": "SET_TO_LOCAL_PLAYER_TOTAL_LEVEL"
+                },
+                {
+                  "id": "SET_TO_LOCAL_PLAYER_TOTAL_EXPERIENCE"
+                },
+                {
+                  "id": "SET_TO_EXPERIENCE_FOR_LEVEL"
+                }
+              ]
+            },
+            {
+              "id": "COMMENT",
+              "properties": {
+                "Comment": "Mouse"
+              },
+              "children": [
+                {
+                  "id": "SET_VARIABLE_TO_MOUSE_X"
+                },
+                {
+                  "id": "SET_VARIABLE_TO_MOUSE_Y"
+                }
+              ]
+            },
+            {
+              "id": "COMMENT",
+              "properties": {
+                "Comment": "Text"
+              },
+              "children": [
+                {
+                  "id": "SET_VARIABLE_TO_TEXT_SUBSTRING"
+                },
+                {
+                  "id": "SET_VARIABLE_TO_HASH"
+                },
+                {
+                  "id": "SET_VARIABLE_TO_TEXT_LENGTH"
+                }
+              ]
+            },
+            {
+              "id": "COMMENT",
+              "properties": {
+                "Comment": "User Input"
+              },
+              "children": [
+                {
+                  "id": "SET_VARIABLE_TO_USER_INPUT"
+                },
+                {
+                  "id": "SET_VARIABLE_TO_USER_INPUT_OPTIONS"
+                },
+                {
+                  "id": "SET_VARIABLE_TO_USER_INPUT_FILE"
+                },
+                {
+                  "id": "SET_VARIABLE_TO_USER_INPUT_TILE"
+                },
+                {
+                  "id": "SET_VARIABLE_TO_USER_INPUT_AREA"
+                },
+                {
+                  "id": "SET_VARIABLE_TO_USER_INPUT_SINGLE_GAME_OBJECT"
+                }
+              ]
+            },
+            {
+              "id": "COMMENT",
+              "properties": {
+                "Comment": "Variable Property - Properties: From Variable, To Variable"
+              },
+              "children": [
+                {
+                  "id": "COMMENT",
+                  "properties": {
+                    "Comment": "Entity"
+                  },
+                  "children": [
+                    {
+                      "id": "SET_TO_VARIABLE_ENTITY_ID",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_ENTITY_NAME",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_ENTITY_LEVEL",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_ENTITY_INDEX",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_ENTITY_HEALTH_PERCENTAGE",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_ENTITY_TILE",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_ENTITY_SERVER_TILE",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_ENTITY_Y",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_ENTITY_X",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_ENTITY_Z",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_ENTITY_GRID_Y",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_ENTITY_GRID_X",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_ENTITY_ORIENTATION",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_ENTITY_ANIMATION_ID",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_ENTITY_HEIGHT",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_ENTITY_SIZE",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_ENTITY_OVERHEAD_ICON",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_ENTITY_OVERHEAD_TEXT",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_ENTITY_SKULL_ICON",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "COMMENT",
+                  "properties": {
+                    "Comment": "Item"
+                  },
+                  "children": [
+                    {
+                      "id": "SET_TO_VARIABLE_ITEM_ID",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_ITEM_NAME",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_ITEM_LIVE_PRICE",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_ITEM_AMOUNT",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_ITEM_SHOP_PRICE",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_ITEM_LOW_ALCH_PRICE",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_ITEM_HIGH_ALCH_PRICE",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_ITEM_SLOT",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "COMMENT",
+                  "properties": {
+                    "Comment": "Widget"
+                  },
+                  "children": [
+                    {
+                      "id": "SET_TO_VARIABLE_WIDGET_TEXT",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_WIDGET_NUMBER_IN_TEXT",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_WIDGET_TEXT_COLOR",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_WIDGET_NAME",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_WIDGET_X",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_WIDGET_Y",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_WIDGET_WIDTH",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_WIDGET_HEIGHT",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_WIDGET_PARENT_ID",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_WIDGET_TEXTURE_ID",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_WIDGET_TYPE",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_WIDGET_ITEM_ID",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_WIDGET_ITEM_AMOUNT",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_WIDGET_DISABLED_MEDIA_TYPE",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
+                    },
+                    {
+                      "id": "SET_TO_VARIABLE_WIDGET_ENABLED_MEDIA_TYPE",
+                      "properties": {
+                        "To variable": "",
+                        "From variable": ""
+                      }
                     }
                   ]
                 }

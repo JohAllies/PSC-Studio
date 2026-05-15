@@ -140,7 +140,10 @@ const warnForReferences = (
   });
 };
 
-export const analyzeDocumentWarnings = (document: PscDocument): PscWarning[] => {
+export const analyzeDocumentWarnings = (
+  document: PscDocument,
+  availableCustomActions: Record<string, unknown> = document.customActions ?? {},
+): PscWarning[] => {
   const warnings: PscWarning[] = [];
   const definedVariables = new Set<string>();
   const customActions = document.customActions ?? {};
@@ -161,7 +164,7 @@ export const analyzeDocumentWarnings = (document: PscDocument): PscWarning[] => 
     definedVariables,
     warnings,
     "Main Actions",
-    customActions,
+    availableCustomActions,
   );
 
   Object.entries(customActions).forEach(([customActionId, customAction]) => {
@@ -170,7 +173,7 @@ export const analyzeDocumentWarnings = (document: PscDocument): PscWarning[] => 
       definedVariables,
       warnings,
       `Custom Action ${customActionId}`,
-      customActions,
+      availableCustomActions,
     );
   });
 

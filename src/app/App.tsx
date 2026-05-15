@@ -1,17 +1,38 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { MenuBar } from "../components/MenuBar";
 import { ScriptTree } from "../components/ScriptTree";
 import { Inspector } from "../components/Inspector";
 import { loadFunctionCatalog, type PscFunctionCatalog } from "../lib/psc/catalog";
 import { useSupabaseAuth } from "../lib/supabase/auth";
 import {
+  type JsonDirectoryTreeNode,
+  openJsonDirectory,
   openJsonDocuments,
   openJsonDocument,
+  readJsonDirectoryTree,
+  readJsonDirectory,
+  readTextFileHandle,
   saveJsonDocument,
   supportsNativeFileAccess,
+  supportsNativeDirectoryAccess,
+  writeJsonFileInDirectory,
+  writeTextToFileHandle,
 } from "../lib/file-system";
 import { formatTreeNodeLabel } from "../lib/psc/labels";
-import { parseDocumentText } from "../lib/psc/parse";
+import { parseDocumentText, serializeCustomActionEntity } from "../lib/psc/parse";
+import {
+  buildEffectiveCustomActionSources,
+  loadLocalCustomActionsFromFiles,
+  type EffectiveCustomActionSource,
+  type LocalCustomActionRegistry,
+} from "../lib/psc/local-custom-actions";
+import {
+  clearStoredDirectoryHandle,
+  loadStoredDirectoryHandle,
+  queryDirectoryPermission,
+  requestDirectoryPermission,
+  storeDirectoryHandle,
+} from "../lib/local-directory-handles";
 import {
   CloudScriptConflictError,
   createUserScript,
@@ -54,6 +75,58 @@ const fetchSampleText = async (samplePath: string) => {
   return response.text();
 };
 
+const sanitizeCustomActionFileName = (value: string, fallbackId: string) => {
+  const base = value
+    .replace(/>/g, " ")
+    .replace(/[\\/:*?"<>|]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const safeBase = base.length > 0 ? base : fallbackId;
+  return `${safeBase}.json`;
+};
+
+const findLocalScriptNodeByPath = (
+  nodes: JsonDirectoryTreeNode[],
+  targetPath: string,
+): Extract<JsonDirectoryTreeNode, { kind: "file" }> | null => {
+  for (const node of nodes) {
+    if (node.kind === "file") {
+      if (node.path === targetPath) {
+        return node;
+      }
+      continue;
+    }
+
+    const match = findLocalScriptNodeByPath(node.children, targetPath);
+    if (match) {
+      return match;
+    }
+  }
+
+  return null;
+};
+
+const findLocalScriptNodesByName = (
+  nodes: JsonDirectoryTreeNode[],
+  targetName: string,
+): Array<Extract<JsonDirectoryTreeNode, { kind: "file" }>> => {
+  const matches: Array<Extract<JsonDirectoryTreeNode, { kind: "file" }>> = [];
+
+  nodes.forEach((node) => {
+    if (node.kind === "file") {
+      if (node.name === targetName) {
+        matches.push(node);
+      }
+      return;
+    }
+
+    matches.push(...findLocalScriptNodesByName(node.children, targetName));
+  });
+
+  return matches;
+};
+
 type SavePreference = "unset" | "ask" | "overwrite";
 type SavePromptMode = "initialPreference" | "saveChoice";
 type SavePromptChoice =
@@ -62,9 +135,27 @@ type SavePromptChoice =
   | "askEveryTime"
   | "saveAs"
   | "cancel";
+type CustomActionSaveChoice = "localOnly" | "bakedOnly" | "both" | "cancel";
+type CustomActionSavePromptMode = "bakedOnlyNoLocal" | "bothSources";
 type GateNotice = {
   tone: "success" | "error";
   text: string;
+};
+
+type LocalCustomActionLibraryState = LocalCustomActionRegistry & {
+  directoryHandle: FileSystemDirectoryHandle | null;
+  directoryName: string | null;
+  loading: boolean;
+  notice: string | null;
+  error: string | null;
+};
+
+type LocalScriptLibraryState = {
+  directoryHandle: FileSystemDirectoryHandle | null;
+  directoryName: string | null;
+  tree: JsonDirectoryTreeNode[];
+  loading: boolean;
+  error: string | null;
 };
 
 const SAVE_PREFERENCE_KEY = "psc-studio-save-preference";
@@ -184,7 +275,6 @@ export const App = () => {
   const [authEmail, setAuthEmail] = useState("");
   const [authNotice, setAuthNotice] = useState<GateNotice | null>(null);
   const [authSubmitting, setAuthSubmitting] = useState(false);
-  const [cloudLibraryOpen, setCloudLibraryOpen] = useState(false);
   const [cloudScripts, setCloudScripts] = useState<CloudScriptSummary[]>([]);
   const [cloudUsageBytes, setCloudUsageBytes] = useState(0);
   const [cloudLibraryLoading, setCloudLibraryLoading] = useState(false);
@@ -196,6 +286,33 @@ export const App = () => {
   const [cloudSaveError, setCloudSaveError] = useState<string | null>(null);
   const [cloudSaveSubmitting, setCloudSaveSubmitting] = useState(false);
   const [cloudConflict, setCloudConflict] = useState<CloudScriptSummary | null>(null);
+  const [supportsLocalFolderAccess] = useState(() => supportsNativeDirectoryAccess());
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [openLibraryOpen, setOpenLibraryOpen] = useState(false);
+  const [openLibraryTab, setOpenLibraryTab] = useState<"local" | "cloud">("local");
+  const [localCustomActionLibrary, setLocalCustomActionLibrary] =
+    useState<LocalCustomActionLibraryState>({
+      customActions: {},
+      nodeIndex: {},
+      sources: {},
+      loadedFileCount: 0,
+      loadedActionCount: 0,
+      duplicateIds: [],
+      skippedFiles: [],
+      directoryHandle: null,
+      directoryName: null,
+      loading: false,
+      notice: null,
+      error: null,
+    });
+  const [localScriptLibrary, setLocalScriptLibrary] = useState<LocalScriptLibraryState>({
+    directoryHandle: null,
+    directoryName: null,
+    tree: [],
+    loading: false,
+    error: null,
+  });
+  const [currentLocalScriptPath, setCurrentLocalScriptPath] = useState<string | null>(null);
   const [isNarrowLayout, setIsNarrowLayout] = useState(() => window.innerWidth <= 1100);
   const [leftPaneWidth, setLeftPaneWidth] = useState<number>(() => {
     try {
@@ -228,6 +345,9 @@ export const App = () => {
   const markSaved = useEditorStore((state) => state.markSaved);
   const insertNodeTemplate = useEditorStore((state) => state.insertNodeTemplate);
   const removeNode = useEditorStore((state) => state.removeNode);
+  const setExternalCustomActionIds = useEditorStore(
+    (state) => state.setExternalCustomActionIds ?? (() => {}),
+  );
   const undo = useEditorStore((state) => state.undo);
   const [savePreference, setSavePreference] = useState<SavePreference>(() => {
     try {
@@ -243,8 +363,124 @@ export const App = () => {
   const [savePromptMode, setSavePromptMode] = useState<SavePromptMode>("saveChoice");
   const [savePromptOpen, setSavePromptOpen] = useState(false);
   const savePromptResolverRef = useRef<((choice: SavePromptChoice) => void) | null>(null);
+  const [customActionSavePromptMode, setCustomActionSavePromptMode] =
+    useState<CustomActionSavePromptMode>("bothSources");
+  const [customActionSavePromptOpen, setCustomActionSavePromptOpen] = useState(false);
+  const customActionSavePromptResolverRef =
+    useRef<((choice: CustomActionSaveChoice) => void) | null>(null);
+  const [documentSaveOptionsOpen, setDocumentSaveOptionsOpen] = useState(false);
+  const [documentSaveTargets, setDocumentSaveTargets] = useState({
+    local: true,
+    cloud: false,
+  });
+  const [documentSaveSubmitting, setDocumentSaveSubmitting] = useState(false);
   const workspaceRef = useRef<HTMLElement | null>(null);
   const isResizingRef = useRef(false);
+  const effectiveCustomActions = useMemo(
+    () => ({
+      ...customActions,
+      ...localCustomActionLibrary.customActions,
+    }),
+    [customActions, localCustomActionLibrary.customActions],
+  );
+  const effectiveCustomActionSources = useMemo<Record<string, EffectiveCustomActionSource>>(
+    () =>
+      buildEffectiveCustomActionSources(
+        customActions,
+        localCustomActionLibrary.customActions,
+        localCustomActionLibrary.sources,
+      ),
+    [customActions, localCustomActionLibrary.customActions, localCustomActionLibrary.sources],
+  );
+
+  useEffect(() => {
+    setExternalCustomActionIds(Object.keys(localCustomActionLibrary.customActions));
+  }, [localCustomActionLibrary.customActions, setExternalCustomActionIds]);
+
+  useEffect(() => {
+    if (!supportsLocalFolderAccess) {
+      return;
+    }
+
+    let mounted = true;
+
+    const restoreStoredFolders = async () => {
+      try {
+        const [customActionHandle, scriptHandle] = await Promise.all([
+          loadStoredDirectoryHandle("customActions"),
+          loadStoredDirectoryHandle("scripts"),
+        ]);
+
+        if (!mounted) {
+          return;
+        }
+
+        if (customActionHandle) {
+          const permission = await queryDirectoryPermission(customActionHandle);
+          if (!mounted) {
+            return;
+          }
+
+          if (permission === "granted") {
+            const loadedDirectory = await readJsonDirectory(customActionHandle);
+            if (!mounted) {
+              return;
+            }
+            const registry = loadLocalCustomActionsFromFiles(loadedDirectory.files);
+            applyLoadedLocalCustomActions(
+              registry,
+              loadedDirectory.directoryName,
+              loadedDirectory.handle,
+            );
+          } else {
+            setLocalCustomActionLibrary((current) => ({
+              ...current,
+              directoryHandle: customActionHandle,
+              directoryName: customActionHandle.name,
+              notice: "Local custom action folder remembered. Regrant access to read it.",
+              error: null,
+            }));
+          }
+        }
+
+        if (scriptHandle) {
+          const permission = await queryDirectoryPermission(scriptHandle);
+          if (!mounted) {
+            return;
+          }
+
+          if (permission === "granted") {
+            await refreshLocalScriptLibrary(scriptHandle);
+          } else {
+            setLocalScriptLibrary((current) => ({
+              ...current,
+              directoryHandle: scriptHandle,
+              directoryName: scriptHandle.name,
+              error: "Local scripts folder remembered. Regrant access to read it.",
+            }));
+          }
+        }
+      } catch (error) {
+        if (!mounted) {
+          return;
+        }
+
+        setLocalScriptLibrary((current) => ({
+          ...current,
+          error:
+            error instanceof Error
+              ? `Unable to restore remembered folder access: ${error.message}`
+              : "Unable to restore remembered folder access.",
+        }));
+      }
+    };
+
+    void restoreStoredFolders();
+
+    return () => {
+      mounted = false;
+    };
+  }, [supportsLocalFolderAccess]);
 
   useEffect(() => {
     let mounted = true;
@@ -301,7 +537,7 @@ export const App = () => {
 
   useEffect(() => {
     if (!auth.user) {
-      setCloudLibraryOpen(false);
+      setOpenLibraryOpen(false);
       setCloudScripts([]);
       setCloudUsageBytes(0);
       setCloudLibraryError(null);
@@ -438,15 +674,6 @@ export const App = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [removeNode, selection, undo]);
 
-  const sampleOptions = useMemo(
-    () =>
-      Object.entries(samples).map(([id, sample]) => ({
-        id,
-        label: sample.label,
-      })),
-    [],
-  );
-
   const refreshCloudLibrary = async () => {
     if (!auth.user) {
       setCloudScripts([]);
@@ -515,21 +742,231 @@ export const App = () => {
     }
   };
 
-  const getNodeLabel = (editorId: string) => {
-    const node = nodeIndex[editorId];
-    if (!node) {
-      return "";
+  const applyLoadedLocalCustomActions = (
+    registry: LocalCustomActionRegistry,
+    directoryName: string | null,
+    directoryHandle: FileSystemDirectoryHandle | null,
+  ) => {
+    const duplicateSummary =
+      registry.duplicateIds.length > 0
+        ? ` ${registry.duplicateIds.length} duplicate id${
+            registry.duplicateIds.length === 1 ? "" : "s"
+          } resolved by last file path.`
+        : "";
+    const skippedSummary =
+      registry.skippedFiles.length > 0
+        ? ` Skipped ${registry.skippedFiles.length} file${
+            registry.skippedFiles.length === 1 ? "" : "s"
+          } that were not PSC custom-action JSON.`
+        : "";
+
+    setLocalCustomActionLibrary({
+      ...registry,
+      directoryHandle,
+      directoryName,
+      loading: false,
+      notice:
+        registry.loadedActionCount > 0
+          ? `Loaded ${Object.keys(registry.customActions).length} local custom action${
+              Object.keys(registry.customActions).length === 1 ? "" : "s"
+            } from ${directoryName ?? "selected folder"}.${duplicateSummary}${skippedSummary}`
+          : `No local custom actions found in ${directoryName ?? "selected folder"}.${skippedSummary}`,
+      error: null,
+    });
+  };
+
+  const handleChooseLocalCustomActionFolder = async () => {
+    setLocalCustomActionLibrary((current) => ({
+      ...current,
+      loading: true,
+      notice: null,
+      error: null,
+    }));
+
+    try {
+      const loadedDirectory = await openJsonDirectory();
+      if (!loadedDirectory) {
+        setLocalCustomActionLibrary((current) => ({
+          ...current,
+          loading: false,
+        }));
+        return;
+      }
+
+      if (loadedDirectory.handle) {
+        await storeDirectoryHandle("customActions", loadedDirectory.handle);
+      }
+
+      const registry = loadLocalCustomActionsFromFiles(loadedDirectory.files);
+      applyLoadedLocalCustomActions(
+        registry,
+        loadedDirectory.directoryName,
+        loadedDirectory.handle,
+      );
+    } catch (error) {
+      setLocalCustomActionLibrary((current) => ({
+        ...current,
+        loading: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unable to load local custom action folder.",
+      }));
+    }
+  };
+
+  const handleRefreshLocalCustomActionFolder = async () => {
+    if (!localCustomActionLibrary.directoryHandle) {
+      await handleChooseLocalCustomActionFolder();
+      return;
     }
 
-    return formatTreeNodeLabel(node, customActions);
+    setLocalCustomActionLibrary((current) => ({
+      ...current,
+      loading: true,
+      notice: null,
+      error: null,
+    }));
+
+    try {
+      const permission = await requestDirectoryPermission(localCustomActionLibrary.directoryHandle);
+      if (permission !== "granted") {
+        setLocalCustomActionLibrary((current) => ({
+          ...current,
+          loading: false,
+          error: "Folder access was not granted.",
+        }));
+        return;
+      }
+
+      const loadedDirectory = await readJsonDirectory(localCustomActionLibrary.directoryHandle);
+      const registry = loadLocalCustomActionsFromFiles(loadedDirectory.files);
+      applyLoadedLocalCustomActions(
+        registry,
+        loadedDirectory.directoryName,
+        loadedDirectory.handle,
+      );
+    } catch (error) {
+      setLocalCustomActionLibrary((current) => ({
+        ...current,
+        loading: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unable to refresh local custom action folder.",
+      }));
+    }
+  };
+
+  const handleClearLocalCustomActionFolder = () => {
+    void clearStoredDirectoryHandle("customActions");
+    setLocalCustomActionLibrary({
+      customActions: {},
+      nodeIndex: {},
+      sources: {},
+      loadedFileCount: 0,
+      loadedActionCount: 0,
+      duplicateIds: [],
+      skippedFiles: [],
+      directoryHandle: null,
+      directoryName: null,
+      loading: false,
+      notice: null,
+      error: null,
+    });
+  };
+
+  const refreshLocalScriptLibrary = async (directoryHandle: FileSystemDirectoryHandle) => {
+    setLocalScriptLibrary((current) => ({
+      ...current,
+      loading: true,
+      error: null,
+    }));
+
+    try {
+      const permission = await requestDirectoryPermission(directoryHandle);
+      if (permission !== "granted") {
+        setLocalScriptLibrary((current) => ({
+          ...current,
+          directoryHandle,
+          directoryName: directoryHandle.name,
+          loading: false,
+          error: "Folder access was not granted.",
+        }));
+        return;
+      }
+
+      const tree = await readJsonDirectoryTree(directoryHandle);
+      setLocalScriptLibrary({
+        directoryHandle,
+        directoryName: directoryHandle.name,
+        tree,
+        loading: false,
+        error: null,
+      });
+    } catch (error) {
+      setLocalScriptLibrary((current) => ({
+        ...current,
+        loading: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unable to read the local scripts folder.",
+      }));
+    }
+  };
+
+  const handleChooseLocalScriptFolder = async () => {
+    try {
+      const loadedDirectory = await openJsonDirectory();
+      if (!loadedDirectory?.handle) {
+        return;
+      }
+
+      await storeDirectoryHandle("scripts", loadedDirectory.handle);
+      await refreshLocalScriptLibrary(loadedDirectory.handle);
+    } catch (error) {
+      setLocalScriptLibrary((current) => ({
+        ...current,
+        loading: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unable to access the local scripts folder.",
+      }));
+    }
+  };
+
+  const handleOpenLocalScript = async (fileHandle: FileSystemFileHandle, path: string) => {
+    try {
+      const text = await readTextFileHandle(fileHandle);
+      loadDocument(parseDocumentText(text), fileHandle.name);
+      setFileHandle(fileHandle);
+      setDocumentSourceName(fileHandle.name);
+      setCurrentLocalScriptPath(path);
+      clearCloudSourceMetadata();
+      setDocumentOrigin("local");
+      setOpenLibraryOpen(false);
+    } catch (error) {
+      setLocalScriptLibrary((current) => ({
+        ...current,
+        error:
+          error instanceof Error
+            ? `Unable to open ${path}: ${error.message}`
+            : `Unable to open ${path}.`,
+      }));
+    }
   };
 
   const resolveInsertionTarget = () => {
     if (selection.kind === "node") {
-      const owner = useEditorStore.getState().nodeIndex[selection.editorId].ownerCustomActionId;
+      const selectedNode = useEditorStore.getState().nodeIndex[selection.editorId];
+      const owner = selectedNode.ownerCustomActionId;
       return {
         targetParentEditorId: selection.editorId,
         ownerCustomActionId: owner,
+        readOnly:
+          owner ? effectiveCustomActionSources[owner]?.source === "local" : false,
       };
     }
 
@@ -537,13 +974,16 @@ export const App = () => {
       return {
         targetParentEditorId: null,
         ownerCustomActionId: selection.customActionId,
+        readOnly: effectiveCustomActionSources[selection.customActionId]?.source === "local",
       };
     }
 
     if (activeTabId.startsWith("customAction:")) {
+      const customActionId = activeTabId.slice("customAction:".length);
       return {
         targetParentEditorId: null,
-        ownerCustomActionId: activeTabId.slice("customAction:".length),
+        ownerCustomActionId: customActionId,
+        readOnly: effectiveCustomActionSources[customActionId]?.source === "local",
       };
     }
 
@@ -551,17 +991,23 @@ export const App = () => {
       return {
         targetParentEditorId: null,
         ownerCustomActionId: focusedCustomActionId,
+        readOnly: effectiveCustomActionSources[focusedCustomActionId]?.source === "local",
       };
     }
 
     return {
       targetParentEditorId: null,
       ownerCustomActionId: null,
+      readOnly: false,
     };
   };
 
   const handleInsertCatalogNode = (nodeTemplate: PscNode) => {
     const target = resolveInsertionTarget();
+    if (target.readOnly) {
+      window.alert("Local custom actions are read-only in PSC Studio. Edit the source JSON file instead.");
+      return;
+    }
     insertNodeTemplate(
       nodeTemplate,
       target.targetParentEditorId,
@@ -569,29 +1015,13 @@ export const App = () => {
     );
   };
 
-  const loadSample = async (sampleId: string) => {
-    const sample = samples[sampleId as keyof typeof samples];
-    if (!sample) {
-      return;
-    }
-
-    const sampleText = await fetchSampleText(sample.path);
-    loadDocument(parseDocumentText(sampleText), `${sample.label}.json`);
-    setFileHandle(null);
-    clearCloudSourceMetadata();
-    setDocumentOrigin("sample");
-  };
-
   const handleOpenFile = async () => {
-    const loaded = await openJsonDocument();
-    if (!loaded) {
-      return;
-    }
+    setOpenLibraryTab("local");
+    setOpenLibraryOpen(true);
 
-    loadDocument(parseDocumentText(loaded.text), loaded.fileName);
-    setFileHandle(loaded.handle);
-    clearCloudSourceMetadata();
-    setDocumentOrigin("local");
+    if (localScriptLibrary.directoryHandle) {
+      await refreshLocalScriptLibrary(localScriptLibrary.directoryHandle);
+    }
   };
 
   const promptSaveChoice = (mode: SavePromptMode) =>
@@ -607,21 +1037,72 @@ export const App = () => {
     savePromptResolverRef.current = null;
   };
 
-  const handleSaveFile = async () => {
-    const { invalidEditCount: currentInvalidEditCount, pendingEditCount: currentPendingEditCount } =
-      useEditorStore.getState();
+  const promptCustomActionSaveChoice = (mode: CustomActionSavePromptMode) =>
+    new Promise<CustomActionSaveChoice>((resolve) => {
+      setCustomActionSavePromptMode(mode);
+      customActionSavePromptResolverRef.current = resolve;
+      setCustomActionSavePromptOpen(true);
+    });
 
-    if (currentInvalidEditCount > 0) {
-      window.alert("Resolve invalid inspector values before saving.");
+  const handleCustomActionSavePromptChoice = (choice: CustomActionSaveChoice) => {
+    setCustomActionSavePromptOpen(false);
+    customActionSavePromptResolverRef.current?.(choice);
+    customActionSavePromptResolverRef.current = null;
+  };
+
+  const executeDocumentSaveTargets = async () => {
+    if (!documentSaveTargets.local && !documentSaveTargets.cloud) {
+      window.alert("Select at least one save target.");
       return;
     }
 
-    if (currentPendingEditCount > 0) {
-      window.alert("Commit the current field before saving.");
-      return;
-    }
+    setDocumentSaveSubmitting(true);
+    try {
+      if (documentSaveTargets.local) {
+        await saveCurrentDocument();
+      }
 
+      if (documentSaveTargets.cloud) {
+        await handleSaveToAccount();
+      }
+
+      setDocumentSaveOptionsOpen(false);
+    } finally {
+      setDocumentSaveSubmitting(false);
+    }
+  };
+
+  const saveCurrentDocument = async () => {
     const text = saveDocumentText();
+
+    if (localScriptLibrary.directoryHandle) {
+      const targetFileName =
+        fileHandle?.name ??
+        (documentSourceName.endsWith(".json") ? documentSourceName : `${documentSourceName}.json`);
+      const exactPathMatch = currentLocalScriptPath
+        ? findLocalScriptNodeByPath(localScriptLibrary.tree, currentLocalScriptPath)
+        : null;
+      const nameMatches = exactPathMatch
+        ? [exactPathMatch]
+        : findLocalScriptNodesByName(localScriptLibrary.tree, targetFileName);
+      const existingTarget = nameMatches[0] ?? null;
+      const nextHandle = existingTarget
+        ? (await writeTextToFileHandle(existingTarget.handle, text), existingTarget.handle)
+        : await writeJsonFileInDirectory(
+            localScriptLibrary.directoryHandle,
+            targetFileName,
+            text,
+          );
+      setFileHandle(nextHandle);
+      setDocumentSourceName(nextHandle.name);
+      setCurrentLocalScriptPath(existingTarget?.path ?? targetFileName);
+      markSaved(text);
+      if (!cloudSource) {
+        setDocumentOrigin("local");
+      }
+      await refreshLocalScriptLibrary(localScriptLibrary.directoryHandle);
+      return;
+    }
 
     const saveAsNewFile = async () => {
       const nextHandle = await saveJsonDocument(documentSourceName, text, null);
@@ -707,8 +1188,146 @@ export const App = () => {
     }
   };
 
-  const handleExport = async () => {
-    await saveJsonDocument(documentSourceName, saveDocumentText(), null);
+  const saveCustomActionToLocal = async (customActionId: string) => {
+    const action =
+      effectiveCustomActions[customActionId] ?? useEditorStore.getState().customActions[customActionId];
+    if (!action) {
+      throw new Error("Custom action is not available.");
+    }
+
+    const sourceInfo = localCustomActionLibrary.sources[customActionId] ?? null;
+    const nodeIndexForAction =
+      localCustomActionLibrary.customActions[customActionId] ? localCustomActionLibrary.nodeIndex : nodeIndex;
+    const serializedAction = serializeCustomActionEntity(action, nodeIndexForAction);
+
+    if (sourceInfo?.fileHandle) {
+      if (sourceInfo.fileFormat === "standalone") {
+        await writeTextToFileHandle(sourceInfo.fileHandle, JSON.stringify(serializedAction, null, 2));
+      } else {
+        const currentText = await (await sourceInfo.fileHandle.getFile()).text();
+        const parsed = JSON.parse(currentText) as Record<string, unknown>;
+        const existingCustomActions =
+          parsed.customActions && typeof parsed.customActions === "object" && !Array.isArray(parsed.customActions)
+            ? (parsed.customActions as Record<string, unknown>)
+            : {};
+
+        await writeTextToFileHandle(
+          sourceInfo.fileHandle,
+          JSON.stringify(
+            {
+              ...parsed,
+              customActions: {
+                ...existingCustomActions,
+                [customActionId]: serializedAction,
+              },
+            },
+            null,
+            2,
+          ),
+        );
+      }
+
+      await handleRefreshLocalCustomActionFolder();
+      return;
+    }
+
+    let directoryHandle = localCustomActionLibrary.directoryHandle;
+    if (!directoryHandle) {
+      const loadedDirectory = await openJsonDirectory();
+      if (!loadedDirectory?.handle) {
+        throw new Error("Folder access is required to save a local custom action copy.");
+      }
+
+      const registry = loadLocalCustomActionsFromFiles(loadedDirectory.files);
+      applyLoadedLocalCustomActions(
+        registry,
+        loadedDirectory.directoryName,
+        loadedDirectory.handle,
+      );
+      await storeDirectoryHandle("customActions", loadedDirectory.handle);
+      directoryHandle = loadedDirectory.handle;
+    }
+
+    const nextFileName = sanitizeCustomActionFileName(String(action.raw.name ?? ""), customActionId);
+    await writeJsonFileInDirectory(
+      directoryHandle,
+      nextFileName,
+      JSON.stringify(serializedAction, null, 2),
+    );
+    await handleRefreshLocalCustomActionFolder();
+  };
+
+  const handleSaveActiveCustomAction = async () => {
+    const activeCustomActionId = activeTabId.startsWith("customAction:")
+      ? activeTabId.slice("customAction:".length)
+      : null;
+
+    if (!activeCustomActionId) {
+      await saveCurrentDocument();
+      return;
+    }
+
+    const hasEmbeddedCopy = Boolean(customActions[activeCustomActionId]);
+    const hasLocalCopy = Boolean(localCustomActionLibrary.customActions[activeCustomActionId]);
+
+    if (hasLocalCopy && hasEmbeddedCopy) {
+      const choice = await promptCustomActionSaveChoice("bothSources");
+      if (choice === "localOnly") {
+        await saveCustomActionToLocal(activeCustomActionId);
+      } else if (choice === "bakedOnly") {
+        await saveCurrentDocument();
+      } else if (choice === "both") {
+        await saveCustomActionToLocal(activeCustomActionId);
+        await saveCurrentDocument();
+      }
+      return;
+    }
+
+    if (hasEmbeddedCopy && !hasLocalCopy) {
+      const choice = await promptCustomActionSaveChoice("bakedOnlyNoLocal");
+      if (choice === "localOnly") {
+        await saveCustomActionToLocal(activeCustomActionId);
+      } else if (choice === "bakedOnly") {
+        await saveCurrentDocument();
+      } else if (choice === "both") {
+        await saveCustomActionToLocal(activeCustomActionId);
+        await saveCurrentDocument();
+      }
+      return;
+    }
+
+    if (hasLocalCopy) {
+      await saveCustomActionToLocal(activeCustomActionId);
+      return;
+    }
+
+    await saveCurrentDocument();
+  };
+
+  const handleSaveFile = async () => {
+    const { invalidEditCount: currentInvalidEditCount, pendingEditCount: currentPendingEditCount } =
+      useEditorStore.getState();
+
+    if (currentInvalidEditCount > 0) {
+      window.alert("Resolve invalid inspector values before saving.");
+      return;
+    }
+
+    if (currentPendingEditCount > 0) {
+      window.alert("Commit the current field before saving.");
+      return;
+    }
+
+    try {
+      if (activeTabId.startsWith("customAction:")) {
+        await handleSaveActiveCustomAction();
+        return;
+      }
+
+      setDocumentSaveOptionsOpen(true);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Unable to save right now.");
+    }
   };
 
   const handleRequestMagicLink = async () => {
@@ -742,7 +1361,7 @@ export const App = () => {
   const handleSignOut = async () => {
     try {
       await auth.signOut();
-      setCloudLibraryOpen(false);
+      setOpenLibraryOpen(false);
       setBootState("loading");
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "Unable to sign out.");
@@ -754,9 +1373,10 @@ export const App = () => {
       return;
     }
 
+    setOpenLibraryTab("cloud");
+    setOpenLibraryOpen(true);
     setCloudLibraryError(null);
     setCloudLibraryNotice(null);
-    setCloudLibraryOpen(true);
     await refreshCloudLibrary();
   };
 
@@ -764,6 +1384,7 @@ export const App = () => {
     const cloudScript = await getUserScript(scriptId);
     loadDocument(parseDocumentText(cloudScript.jsonText), cloudScript.name);
     setFileHandle(null);
+    setCurrentLocalScriptPath(null);
     setCloudSourceMetadata({
       cloudScriptId: cloudScript.id,
       cloudRevisionUpdatedAt: cloudScript.updatedAt,
@@ -771,7 +1392,7 @@ export const App = () => {
     });
     setDocumentSourceName(cloudScript.name);
     setDocumentOrigin("cloud");
-    setCloudLibraryOpen(false);
+    setOpenLibraryOpen(false);
   };
 
   const handleOpenCloudScript = async (scriptId: string) => {
@@ -840,7 +1461,7 @@ export const App = () => {
         setDocumentSourceName(updated.name);
         markSaved(jsonText);
         setDocumentOrigin("cloud");
-        if (cloudLibraryOpen) {
+        if (openLibraryOpen && openLibraryTab === "cloud") {
           await refreshCloudLibrary();
         }
       } catch (error) {
@@ -888,7 +1509,7 @@ export const App = () => {
       markSaved(jsonText);
       setDocumentOrigin("cloud");
       setCloudSaveDialogOpen(false);
-      if (cloudLibraryOpen) {
+      if (openLibraryOpen && openLibraryTab === "cloud") {
         await refreshCloudLibrary();
       }
     } catch (error) {
@@ -921,7 +1542,7 @@ export const App = () => {
       markSaved(jsonText);
       setDocumentOrigin("cloud");
       setCloudConflict(null);
-      if (cloudLibraryOpen) {
+      if (openLibraryOpen && openLibraryTab === "cloud") {
         await refreshCloudLibrary();
       }
     } catch (error) {
@@ -943,6 +1564,36 @@ export const App = () => {
       window.alert(error instanceof Error ? error.message : "Unable to reload cloud script.");
     }
   };
+
+  const renderLocalScriptTree = (
+    nodes: JsonDirectoryTreeNode[],
+    depth = 0,
+  ): ReactNode[] =>
+    nodes.flatMap((node) => {
+      if (node.kind === "directory") {
+        return [
+          <div
+            key={node.path}
+            className="local-script-browser__directory"
+            style={{ paddingLeft: `${depth * 16}px` }}
+          >
+            {node.name}
+          </div>,
+          ...renderLocalScriptTree(node.children, depth + 1),
+        ];
+      }
+
+      return (
+        <button
+          key={node.path}
+          className="local-script-browser__file"
+          style={{ paddingLeft: `${depth * 16 + 12}px` }}
+          onClick={() => void handleOpenLocalScript(node.handle, node.path)}
+        >
+          {node.name}
+        </button>
+      );
+    });
 
   if (auth.loading) {
     return <div className="boot-screen">Loading PSC Studio...</div>;
@@ -1006,20 +1657,24 @@ export const App = () => {
         accountEmail={auth.user.email ?? null}
         onOpenFile={() => void handleOpenFile()}
         onSaveFile={() => void handleSaveFile()}
-        onSaveToAccount={() => void handleSaveToAccount()}
-        onExportFile={() => void handleExport()}
         onOpenCloudLibrary={() => void handleOpenCloudLibrary()}
+        onOpenSettings={() => setSettingsOpen(true)}
         onSignOut={() => void handleSignOut()}
-        onLoadSample={(sampleId) => void loadSample(sampleId)}
         onInsertCatalogNode={handleInsertCatalogNode}
-        samples={sampleOptions}
       />
 
       <div className="editor-strip">
         <div className="editor-strip__title">{documentSourceName}</div>
         <div className="editor-strip__meta">Origin: {documentOrigin}</div>
         <div className="editor-strip__meta">{rootActionIds.length} root lines</div>
-        <div className="editor-strip__meta">{Object.keys(customActions).length} custom actions</div>
+        <div className="editor-strip__meta">
+          {Object.keys(effectiveCustomActions).length} custom actions
+        </div>
+        {localCustomActionLibrary.directoryName ? (
+          <div className="editor-strip__meta">
+            Local folder: {localCustomActionLibrary.directoryName}
+          </div>
+        ) : null}
         {cloudSource ? (
           <div className="editor-strip__meta">Cloud script: {cloudSource.cloudScriptName}</div>
         ) : null}
@@ -1027,7 +1682,20 @@ export const App = () => {
 
       <main className="workspace" ref={workspaceRef} style={workspaceStyle}>
         <div className="workspace__left">
-          <ScriptTree getNodeLabel={getNodeLabel} />
+          <ScriptTree
+            customActions={effectiveCustomActions}
+            customActionSources={effectiveCustomActionSources}
+            localNodeIndex={localCustomActionLibrary.nodeIndex}
+            localLibraryDirectoryName={localCustomActionLibrary.directoryName}
+            localLibraryError={localCustomActionLibrary.error}
+            localLibraryLoading={localCustomActionLibrary.loading}
+            localLibraryNotice={localCustomActionLibrary.notice}
+            canRefreshLocalLibrary={Boolean(localCustomActionLibrary.directoryHandle)}
+            supportsLocalFolderAccess={supportsLocalFolderAccess}
+            onChooseLocalLibrary={() => void handleChooseLocalCustomActionFolder()}
+            onRefreshLocalLibrary={() => void handleRefreshLocalCustomActionFolder()}
+            onClearLocalLibrary={handleClearLocalCustomActionFolder}
+          />
         </div>
 
         <div
@@ -1047,79 +1715,258 @@ export const App = () => {
         />
 
         <div className="workspace__right">
-          <Inspector />
+          <Inspector
+            customActions={effectiveCustomActions}
+            customActionSources={effectiveCustomActionSources}
+          />
         </div>
       </main>
 
-      {cloudLibraryOpen ? (
-        <div className="modal-backdrop" onClick={() => setCloudLibraryOpen(false)}>
+      {openLibraryOpen ? (
+        <div className="modal-backdrop" onClick={() => setOpenLibraryOpen(false)}>
           <div className="save-dialog cloud-library-dialog" onClick={(event) => event.stopPropagation()}>
-            <div className="save-dialog__title">My Scripts</div>
-            <div className="save-dialog__text">
-              {cloudUsageBytes.toLocaleString()} bytes used of {CLOUD_STORAGE_QUOTA_LABEL}.
+            <div className="save-dialog__title">Open Script</div>
+            <div className="library-view-toggle library-view-toggle--modal" role="tablist">
+              <button
+                className="library-view-toggle__button"
+                data-state={openLibraryTab === "local" ? "active" : "inactive"}
+                onClick={() => setOpenLibraryTab("local")}
+                type="button"
+              >
+                Local Folder
+              </button>
+              <button
+                className="library-view-toggle__button"
+                data-state={openLibraryTab === "cloud" ? "active" : "inactive"}
+                onClick={() => void handleOpenCloudLibrary()}
+                type="button"
+              >
+                Cloud Saved Files
+              </button>
             </div>
-            <div className="cloud-warning">
-              Files uploaded here are not encrypted. Do not upload sensitive files or scripts you
-              do not trust the author of this site with.
-            </div>
-            {cloudLibraryNotice ? (
-              <div className="empty-state empty-state--success">{cloudLibraryNotice}</div>
-            ) : null}
-            {cloudLibraryError ? <div className="empty-state">{cloudLibraryError}</div> : null}
-            <div className="cloud-library">
-              {cloudLibraryLoading ? (
-                <div className="empty-state">Loading cloud scripts...</div>
-              ) : cloudScripts.length === 0 ? (
-                <div className="empty-state">No scripts saved to this account yet.</div>
-              ) : (
-                cloudScripts.map((script) => (
-                  <div key={script.id} className="cloud-library__row">
-                    <div className="cloud-library__main">
-                      <div className="cloud-library__name">{script.name}</div>
-                      <div className="cloud-library__meta">
-                        {script.sizeBytes.toLocaleString()} bytes updated{" "}
-                        {new Date(script.updatedAt).toLocaleString()}
+
+            {openLibraryTab === "local" ? (
+              <>
+                <div className="save-dialog__text">
+                  {localScriptLibrary.directoryName
+                    ? `Reading scripts from ${localScriptLibrary.directoryName}.`
+                    : "Grant access to a local scripts folder, then browse and open JSON files directly from disk."}
+                </div>
+                {localScriptLibrary.error ? (
+                  <div className="empty-state">{localScriptLibrary.error}</div>
+                ) : null}
+                <div className="local-script-browser">
+                  {localScriptLibrary.loading ? (
+                    <div className="empty-state">Reading local scripts...</div>
+                  ) : localScriptLibrary.tree.length === 0 ? (
+                    <div className="empty-state">
+                      {localScriptLibrary.directoryName
+                        ? "No JSON scripts found in this folder."
+                        : "No local scripts folder configured yet."}
+                    </div>
+                  ) : (
+                    renderLocalScriptTree(localScriptLibrary.tree)
+                  )}
+                </div>
+                <div className="save-dialog__actions">
+                  <button
+                    className="app-button app-button--menu app-button--accent"
+                    onClick={() => void handleChooseLocalScriptFolder()}
+                  >
+                    {localScriptLibrary.directoryName
+                      ? "Regrant Script Folder"
+                      : "Grant Script Folder Access"}
+                  </button>
+                  <button
+                    className="app-button app-button--menu"
+                    onClick={() =>
+                      localScriptLibrary.directoryHandle
+                        ? void refreshLocalScriptLibrary(localScriptLibrary.directoryHandle)
+                        : void handleChooseLocalScriptFolder()
+                    }
+                    disabled={localScriptLibrary.loading}
+                  >
+                    Re-read
+                  </button>
+                  <button
+                    className="app-button app-button--menu app-button--ghost"
+                    onClick={() => setOpenLibraryOpen(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="save-dialog__text">
+                  {cloudUsageBytes.toLocaleString()} bytes used of {CLOUD_STORAGE_QUOTA_LABEL}.
+                </div>
+                <div className="cloud-warning">
+                  Files uploaded here are not encrypted. Do not upload sensitive files or scripts
+                  you do not trust the author of this site with.
+                </div>
+                {cloudLibraryNotice ? (
+                  <div className="empty-state empty-state--success">{cloudLibraryNotice}</div>
+                ) : null}
+                {cloudLibraryError ? <div className="empty-state">{cloudLibraryError}</div> : null}
+                <div className="cloud-library">
+                  {cloudLibraryLoading ? (
+                    <div className="empty-state">Loading cloud scripts...</div>
+                  ) : cloudScripts.length === 0 ? (
+                    <div className="empty-state">No scripts saved to this account yet.</div>
+                  ) : (
+                    cloudScripts.map((script) => (
+                      <div key={script.id} className="cloud-library__row">
+                        <div className="cloud-library__main">
+                          <div className="cloud-library__name">{script.name}</div>
+                          <div className="cloud-library__meta">
+                            {script.sizeBytes.toLocaleString()} bytes updated{" "}
+                            {new Date(script.updatedAt).toLocaleString()}
+                          </div>
+                        </div>
+                        <div className="cloud-library__actions">
+                          <button
+                            className="app-button app-button--menu"
+                            onClick={() => void handleOpenCloudScript(script.id)}
+                          >
+                            Open
+                          </button>
+                          <button
+                            className="app-button app-button--menu app-button--ghost"
+                            onClick={() => void handleDeleteCloudScript(script.id, script.name)}
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                    <div className="cloud-library__actions">
-                      <button
-                        className="app-button app-button--menu"
-                        onClick={() => void handleOpenCloudScript(script.id)}
-                      >
-                        Open
-                      </button>
-                      <button
-                        className="app-button app-button--menu app-button--ghost"
-                        onClick={() => void handleDeleteCloudScript(script.id, script.name)}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
+                    ))
+                  )}
+                </div>
+                <div className="save-dialog__actions">
+                  <button
+                    className="app-button app-button--menu app-button--accent"
+                    onClick={() => void handleUploadCloudScripts()}
+                    disabled={cloudUploadSubmitting}
+                  >
+                    {cloudUploadSubmitting ? "Uploading..." : "Upload JSON"}
+                  </button>
+                  <button
+                    className="app-button app-button--menu"
+                    onClick={() => void refreshCloudLibrary()}
+                    disabled={cloudUploadSubmitting}
+                  >
+                    Refresh
+                  </button>
+                  <button
+                    className="app-button app-button--menu app-button--ghost"
+                    onClick={() => setOpenLibraryOpen(false)}
+                    disabled={cloudUploadSubmitting}
+                  >
+                    Close
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      {settingsOpen ? (
+        <div className="modal-backdrop" onClick={() => setSettingsOpen(false)}>
+          <div className="save-dialog" onClick={(event) => event.stopPropagation()}>
+            <div className="save-dialog__title">Settings</div>
+            <div className="save-dialog__text">
+              Choose the local folder PSC Studio should use for saving and browsing script files.
+            </div>
+            <div className="settings-block">
+              <div className="settings-block__title">Local Scripts Folder</div>
+              <div className="settings-block__value">
+                {localScriptLibrary.directoryName ?? "No folder access granted."}
+              </div>
+              {localScriptLibrary.error ? (
+                <div className="empty-state">{localScriptLibrary.error}</div>
+              ) : null}
             </div>
             <div className="save-dialog__actions">
               <button
                 className="app-button app-button--menu app-button--accent"
-                onClick={() => void handleUploadCloudScripts()}
-                disabled={cloudUploadSubmitting}
+                onClick={() => void handleChooseLocalScriptFolder()}
+                disabled={!supportsLocalFolderAccess}
               >
-                {cloudUploadSubmitting ? "Uploading..." : "Upload JSON"}
+                {localScriptLibrary.directoryName
+                  ? "Change Scripts Folder"
+                  : "Grant Scripts Folder Access"}
               </button>
               <button
                 className="app-button app-button--menu"
-                onClick={() => void refreshCloudLibrary()}
-                disabled={cloudUploadSubmitting}
+                onClick={() =>
+                  localScriptLibrary.directoryHandle
+                    ? void refreshLocalScriptLibrary(localScriptLibrary.directoryHandle)
+                    : void handleChooseLocalScriptFolder()
+                }
+                disabled={!supportsLocalFolderAccess}
               >
-                Refresh
+                Re-read Folder
               </button>
               <button
                 className="app-button app-button--menu app-button--ghost"
-                onClick={() => setCloudLibraryOpen(false)}
-                disabled={cloudUploadSubmitting}
+                onClick={() => setSettingsOpen(false)}
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {documentSaveOptionsOpen ? (
+        <div className="modal-backdrop" onClick={() => setDocumentSaveOptionsOpen(false)}>
+          <div className="save-dialog" onClick={(event) => event.stopPropagation()}>
+            <div className="save-dialog__title">Save Document</div>
+            <div className="save-dialog__text">
+              Choose where this script should be saved. These selections are remembered for the
+              current session.
+            </div>
+            <label className="save-target-option">
+              <input
+                type="checkbox"
+                checked={documentSaveTargets.local}
+                onChange={(event) =>
+                  setDocumentSaveTargets((current) => ({
+                    ...current,
+                    local: event.target.checked,
+                  }))
+                }
+              />
+              <span>Save local</span>
+            </label>
+            <label className="save-target-option">
+              <input
+                type="checkbox"
+                checked={documentSaveTargets.cloud}
+                onChange={(event) =>
+                  setDocumentSaveTargets((current) => ({
+                    ...current,
+                    cloud: event.target.checked,
+                  }))
+                }
+              />
+              <span>Save to cloud account</span>
+            </label>
+            <div className="save-dialog__actions">
+              <button
+                className="app-button app-button--menu app-button--accent"
+                onClick={() => void executeDocumentSaveTargets()}
+                disabled={documentSaveSubmitting}
+              >
+                {documentSaveSubmitting ? "Saving..." : "Save"}
+              </button>
+              <button
+                className="app-button app-button--menu app-button--ghost"
+                onClick={() => setDocumentSaveOptionsOpen(false)}
+                disabled={documentSaveSubmitting}
+              >
+                Cancel
               </button>
             </div>
           </div>
@@ -1189,6 +2036,73 @@ export const App = () => {
               <button
                 className="app-button app-button--menu app-button--ghost"
                 onClick={() => setCloudConflict(null)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {customActionSavePromptOpen ? (
+        <div
+          className="modal-backdrop"
+          onClick={() => handleCustomActionSavePromptChoice("cancel")}
+        >
+          <div className="save-dialog" onClick={(event) => event.stopPropagation()}>
+            <div className="save-dialog__title">Save active custom action</div>
+            <div className="save-dialog__text">
+              {customActionSavePromptMode === "bakedOnlyNoLocal"
+                ? "This custom action only exists inside the loaded script. Save the baked script copy, create a local custom-action file, or do both."
+                : "This custom action exists both as a local file and inside the loaded script. Choose which target should receive the current custom-action content."}
+            </div>
+            <div className="save-dialog__actions">
+              {customActionSavePromptMode === "bakedOnlyNoLocal" ? (
+                <>
+                  <button
+                    className="app-button app-button--menu app-button--accent"
+                    onClick={() => handleCustomActionSavePromptChoice("localOnly")}
+                  >
+                    Save local copy
+                  </button>
+                  <button
+                    className="app-button app-button--menu"
+                    onClick={() => handleCustomActionSavePromptChoice("bakedOnly")}
+                  >
+                    Save script baked only
+                  </button>
+                  <button
+                    className="app-button app-button--menu"
+                    onClick={() => handleCustomActionSavePromptChoice("both")}
+                  >
+                    Save local & baked
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    className="app-button app-button--menu app-button--accent"
+                    onClick={() => handleCustomActionSavePromptChoice("localOnly")}
+                  >
+                    Save only local
+                  </button>
+                  <button
+                    className="app-button app-button--menu"
+                    onClick={() => handleCustomActionSavePromptChoice("bakedOnly")}
+                  >
+                    Save script baked only
+                  </button>
+                  <button
+                    className="app-button app-button--menu"
+                    onClick={() => handleCustomActionSavePromptChoice("both")}
+                  >
+                    Save local & baked
+                  </button>
+                </>
+              )}
+              <button
+                className="app-button app-button--menu app-button--ghost"
+                onClick={() => handleCustomActionSavePromptChoice("cancel")}
               >
                 Cancel
               </button>

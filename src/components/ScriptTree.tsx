@@ -16,22 +16,30 @@ import {
 } from "@dnd-kit/core";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { TreeRow } from "./TreeRow";
-import {
-  type TreeNodeRef,
-  selectCurrentCustomAction,
-  useEditorStore,
-} from "../store/editor-store";
+import { type TreeNodeRef, useEditorStore } from "../store/editor-store";
 import {
   buildCustomActionCategoryTree,
   parseCustomActionDisplayName,
   type CustomActionCategoryNode,
 } from "../lib/psc/custom-action-groups";
 import { formatTreeNodeLabel } from "../lib/psc/labels";
-import type { EditorNodeEntity } from "../lib/psc/parse";
+import type { EffectiveCustomActionSource } from "../lib/psc/local-custom-actions";
+import type { EditorCustomActionEntity, EditorNodeEntity } from "../lib/psc/parse";
 import type { PscNode } from "../types/psc";
 
 type ScriptTreeProps = {
-  getNodeLabel: (editorId: string) => string;
+  customActions: Record<string, EditorCustomActionEntity>;
+  customActionSources: Record<string, EffectiveCustomActionSource>;
+  localNodeIndex: Record<string, EditorNodeEntity>;
+  localLibraryDirectoryName: string | null;
+  localLibraryNotice: string | null;
+  localLibraryError: string | null;
+  localLibraryLoading: boolean;
+  canRefreshLocalLibrary: boolean;
+  supportsLocalFolderAccess: boolean;
+  onChooseLocalLibrary: () => void;
+  onRefreshLocalLibrary: () => void;
+  onClearLocalLibrary: () => void;
 };
 
 type ContextMenuState =
@@ -137,7 +145,20 @@ const copyTextToClipboard = async (text: string) => {
   }
 };
 
-export const ScriptTree = ({ getNodeLabel }: ScriptTreeProps) => {
+export const ScriptTree = ({
+  customActions,
+  customActionSources,
+  localNodeIndex,
+  localLibraryDirectoryName,
+  localLibraryNotice,
+  localLibraryError,
+  localLibraryLoading,
+  canRefreshLocalLibrary,
+  supportsLocalFolderAccess,
+  onChooseLocalLibrary,
+  onRefreshLocalLibrary,
+  onClearLocalLibrary,
+}: ScriptTreeProps) => {
   const uncategorizedRootKey = "__uncategorized__";
   const directActionsKey = "__direct_actions__";
   const sectionRef = useRef<HTMLElement | null>(null);
@@ -145,9 +166,9 @@ export const ScriptTree = ({ getNodeLabel }: ScriptTreeProps) => {
   const activeTabId = useEditorStore((state) => state.activeTabId);
   const openCustomActionTabIds = useEditorStore((state) => state.openCustomActionTabIds);
   const nodeIndex = useEditorStore((state) => state.nodeIndex);
+  const embeddedCustomActions = useEditorStore((state) => state.customActions);
   const selection = useEditorStore((state) => state.selection);
   const collapsedNodeIds = useEditorStore((state) => state.collapsedNodeIds);
-  const customActions = useEditorStore((state) => state.customActions);
   const rootActionIds = useEditorStore((state) => state.rootActionIds);
   const selectNode = useEditorStore((state) => state.selectNode);
   const selectCustomAction = useEditorStore((state) => state.selectCustomAction);
@@ -158,26 +179,57 @@ export const ScriptTree = ({ getNodeLabel }: ScriptTreeProps) => {
   const moveNode = useEditorStore((state) => state.moveNode);
   const insertNodeTemplates = useEditorStore((state) => state.insertNodeTemplates);
   const removeNodes = useEditorStore((state) => state.removeNodes);
-  const currentCustomAction = useEditorStore(selectCurrentCustomAction);
   const copiedNodeTemplatesRef = useRef<PscNode[]>([]);
   const [selectedTreeNodeIds, setSelectedTreeNodeIds] = useState<string[]>([]);
   const [lastSelectedTreeNodeId, setLastSelectedTreeNodeId] = useState<string | null>(null);
   const [selectedCustomActionIds, setSelectedCustomActionIds] = useState<string[]>([]);
   const [lastSelectedCustomActionId, setLastSelectedCustomActionId] = useState<string | null>(null);
+  const [customActionLibraryView, setCustomActionLibraryView] = useState<"embedded" | "local">(
+    "embedded",
+  );
   const [selectedCustomActionRootKey, setSelectedCustomActionRootKey] = useState<string>("");
   const [selectedCustomActionSubcategoryKey, setSelectedCustomActionSubcategoryKey] =
     useState<string>("");
   const [contextMenuState, setContextMenuState] = useState<ContextMenuState | null>(null);
+  const activeCustomActionId = activeTabId.startsWith("customAction:")
+    ? activeTabId.slice("customAction:".length)
+    : null;
+  const activeCustomActionSource = activeCustomActionId
+    ? customActionSources[activeCustomActionId] ?? null
+    : null;
+  const activeCustomActionNodeIndex =
+    activeCustomActionSource?.source === "local" ? localNodeIndex : nodeIndex;
+  const isReadOnlyTree = activeCustomActionSource?.source === "local";
+  const getNodeLabel = (
+    editorId: string,
+    sourceNodeIndex: Record<string, EditorNodeEntity> = nodeIndex,
+  ) => {
+    const node = sourceNodeIndex[editorId];
+    return node ? formatTreeNodeLabel(node, customActions) : "";
+  };
+
+  const localCustomActions = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(customActions).filter(
+          ([customActionId]) => customActionSources[customActionId]?.source === "local",
+        ),
+      ),
+    [customActions, customActionSources],
+  );
+
+  const visibleCustomActionRegistry =
+    customActionLibraryView === "local" ? localCustomActions : embeddedCustomActions;
 
   const customActionTree = useMemo(
     () =>
       buildCustomActionCategoryTree(
-        Object.values(customActions).map((customAction) => ({
+        Object.values(visibleCustomActionRegistry).map((customAction) => ({
           customActionId: customAction.customActionId,
           name: customAction.raw.name,
         })),
       ),
-    [customActions],
+    [visibleCustomActionRegistry],
   );
 
   const openedCustomActionTabs = useMemo(
@@ -187,18 +239,26 @@ export const ScriptTree = ({ getNodeLabel }: ScriptTreeProps) => {
         .filter((customAction): customAction is NonNullable<typeof customAction> => Boolean(customAction))
         .map((customAction) => ({
           entity: customAction,
+          source: customActionSources[customAction.customActionId]?.source ?? "embedded",
           display: parseCustomActionDisplayName(
             customAction.raw.name,
             customAction.customActionId,
           ),
         })),
-    [customActions, openCustomActionTabIds],
+    [customActions, customActionSources, openCustomActionTabIds],
   );
 
   const visibleNodes = useMemo(() => {
-    const collectTree = (ids: string[], depth = 0): TreeNodeRef[] =>
+    const collectVisibleTree = (
+      ids: string[],
+      sourceNodeIndex: Record<string, EditorNodeEntity>,
+      depth = 0,
+    ): TreeNodeRef[] =>
       ids.flatMap((editorId) => {
-        const entity = nodeIndex[editorId];
+        const entity = sourceNodeIndex[editorId];
+        if (!entity) {
+          return [];
+        }
         const current: TreeNodeRef = {
           editorId,
           depth,
@@ -210,11 +270,11 @@ export const ScriptTree = ({ getNodeLabel }: ScriptTreeProps) => {
           return [current];
         }
 
-        return [current, ...collectTree(entity.childIds, depth + 1)];
+        return [current, ...collectVisibleTree(entity.childIds, sourceNodeIndex, depth + 1)];
       });
 
     if (activeTabId === "actions") {
-      return collectTree(rootActionIds);
+      return collectVisibleTree(rootActionIds, nodeIndex);
     }
 
     if (!activeTabId.startsWith("customAction:")) {
@@ -226,8 +286,19 @@ export const ScriptTree = ({ getNodeLabel }: ScriptTreeProps) => {
       return [];
     }
 
-    return collectTree(customActions[customActionId].rootNodeIds);
-  }, [activeTabId, collapsedNodeIds, customActions, nodeIndex, rootActionIds]);
+    const sourceNodeIndex =
+      customActionSources[customActionId]?.source === "local" ? localNodeIndex : nodeIndex;
+
+    return collectVisibleTree(customActions[customActionId].rootNodeIds, sourceNodeIndex);
+  }, [
+    activeTabId,
+    collapsedNodeIds,
+    customActions,
+    customActionSources,
+    localNodeIndex,
+    nodeIndex,
+    rootActionIds,
+  ]);
 
   const rowVirtualizer = useVirtualizer({
     count: visibleNodes.length,
@@ -235,6 +306,12 @@ export const ScriptTree = ({ getNodeLabel }: ScriptTreeProps) => {
     estimateSize: () => 22,
     overscan: 12,
   });
+  const visibleNodeIndex =
+    activeTabId === "actions"
+      ? nodeIndex
+      : activeCustomActionSource?.source === "local"
+        ? localNodeIndex
+        : nodeIndex;
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -297,8 +374,8 @@ export const ScriptTree = ({ getNodeLabel }: ScriptTreeProps) => {
       ? "Main root actions"
       : activeTabId === "customActions"
         ? "Custom action registry"
-        : currentCustomAction
-          ? String(currentCustomAction.raw.name)
+        : activeCustomActionId && customActions[activeCustomActionId]
+          ? String(customActions[activeCustomActionId].raw.name)
           : "No custom action selected";
 
   const customActionRootEntries = useMemo(
@@ -412,9 +489,9 @@ export const ScriptTree = ({ getNodeLabel }: ScriptTreeProps) => {
 
   useEffect(() => {
     setSelectedCustomActionIds((currentSelection) =>
-      currentSelection.filter((customActionId) => Boolean(customActions[customActionId])),
+      currentSelection.filter((customActionId) => Boolean(visibleCustomActionRegistry[customActionId])),
     );
-  }, [customActions]);
+  }, [visibleCustomActionRegistry]);
 
   useEffect(() => {
     if (!contextMenuState) {
@@ -506,7 +583,9 @@ export const ScriptTree = ({ getNodeLabel }: ScriptTreeProps) => {
         const rangeSelection = visibleNodeIds.slice(from, to + 1);
         setSelectedTreeNodeIds(rangeSelection);
         setLastSelectedTreeNodeId(editorId);
-        selectNode(editorId);
+        if (!isReadOnlyTree) {
+          selectNode(editorId);
+        }
         return rangeSelection;
       }
     }
@@ -518,13 +597,17 @@ export const ScriptTree = ({ getNodeLabel }: ScriptTreeProps) => {
       const normalizedSelection = nextSelection.length > 0 ? nextSelection : [editorId];
       setSelectedTreeNodeIds(normalizedSelection);
       setLastSelectedTreeNodeId(editorId);
-      selectNode(editorId);
+      if (!isReadOnlyTree) {
+        selectNode(editorId);
+      }
       return normalizedSelection;
     }
 
     setSelectedTreeNodeIds([editorId]);
     setLastSelectedTreeNodeId(editorId);
-    selectNode(editorId);
+    if (!isReadOnlyTree) {
+      selectNode(editorId);
+    }
     return [editorId];
   };
 
@@ -783,7 +866,7 @@ export const ScriptTree = ({ getNodeLabel }: ScriptTreeProps) => {
       }
 
       if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === "c") {
-        if (activeTabId === "customActions" || selectedTreeNodeIds.length === 0) {
+        if (activeTabId === "customActions" || isReadOnlyTree || selectedTreeNodeIds.length === 0) {
           return;
         }
 
@@ -793,7 +876,7 @@ export const ScriptTree = ({ getNodeLabel }: ScriptTreeProps) => {
       }
 
       if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === "x") {
-        if (activeTabId === "customActions" || selectedTreeNodeIds.length === 0) {
+        if (activeTabId === "customActions" || isReadOnlyTree || selectedTreeNodeIds.length === 0) {
           return;
         }
 
@@ -803,7 +886,11 @@ export const ScriptTree = ({ getNodeLabel }: ScriptTreeProps) => {
       }
 
       if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === "v") {
-        if (activeTabId === "customActions" || copiedNodeTemplatesRef.current.length === 0) {
+        if (
+          activeTabId === "customActions" ||
+          isReadOnlyTree ||
+          copiedNodeTemplatesRef.current.length === 0
+        ) {
           return;
         }
 
@@ -837,10 +924,61 @@ export const ScriptTree = ({ getNodeLabel }: ScriptTreeProps) => {
           <div className="panel__title">Script Tree</div>
           <div className="panel__subtitle">{subtitle}</div>
         </div>
-        <div className="tree-header__meta">
-          {activeTabId === "customActions"
-            ? `${Object.keys(customActions).length} custom actions`
-            : `${visibleNodes.length} visible lines`}
+        <div className="tree-header__controls">
+          {activeTabId === "customActions" ? (
+            <>
+              <div className="library-view-toggle" role="tablist" aria-label="Custom action source">
+                <button
+                  className="library-view-toggle__button"
+                  data-state={customActionLibraryView === "embedded" ? "active" : "inactive"}
+                  onClick={() => setCustomActionLibraryView("embedded")}
+                  type="button"
+                >
+                  Script Baked
+                </button>
+                <button
+                  className="library-view-toggle__button"
+                  data-state={customActionLibraryView === "local" ? "active" : "inactive"}
+                  onClick={() => setCustomActionLibraryView("local")}
+                  type="button"
+                >
+                  Local Folder
+                </button>
+              </div>
+              <button
+                className="app-button app-button--menu"
+                onClick={onChooseLocalLibrary}
+                disabled={!supportsLocalFolderAccess}
+              >
+                {localLibraryDirectoryName ? "Regrant Folder Access" : "Grant Folder Access"}
+              </button>
+              <button
+                className="app-button app-button--menu"
+                onClick={onRefreshLocalLibrary}
+                disabled={
+                  !supportsLocalFolderAccess || localLibraryLoading || !localLibraryDirectoryName
+                }
+              >
+                {localLibraryLoading ? "Reading..." : canRefreshLocalLibrary ? "Re-read" : "Re-read"}
+              </button>
+              <button
+                className="app-button app-button--menu app-button--ghost"
+                onClick={onClearLocalLibrary}
+                disabled={!localLibraryDirectoryName}
+              >
+                Clear
+              </button>
+            </>
+          ) : null}
+          <div className="tree-header__meta">
+            {activeTabId === "customActions"
+              ? customActionLibraryView === "local"
+                ? `${Object.keys(localCustomActions).length} local copies`
+                : `${Object.keys(embeddedCustomActions).length} script baked`
+              : isReadOnlyTree
+                ? `${visibleNodes.length} read-only lines`
+                : `${visibleNodes.length} visible lines`}
+          </div>
         </div>
       </div>
 
@@ -867,7 +1005,7 @@ export const ScriptTree = ({ getNodeLabel }: ScriptTreeProps) => {
             <span className="tree-tabs__separator" aria-hidden="true" />
           ) : null}
 
-          {openedCustomActionTabs.map(({ entity, display }) => {
+          {openedCustomActionTabs.map(({ entity, display, source }) => {
             const tabId = `customAction:${entity.customActionId}` as const;
             return (
               <button
@@ -879,6 +1017,11 @@ export const ScriptTree = ({ getNodeLabel }: ScriptTreeProps) => {
                 title={display.fullLabel}
               >
                 <span className="tree-tabs__label">{display.leafLabel}</span>
+                {source === "local" ? (
+                  <span className="tree-tabs__badge" title="Local copy">
+                    Local
+                  </span>
+                ) : null}
                 <span
                   className="tree-tabs__close"
                   role="button"
@@ -946,32 +1089,67 @@ export const ScriptTree = ({ getNodeLabel }: ScriptTreeProps) => {
 
           <div className="custom-action-browser__content">
             <div className="custom-action-browser__header">
-              <div className="custom-action-browser__title">
-                {(hasNestedSubcategories
-                  ? customActionSubcategoryEntries.find(
-                      (entry) => entry.key === selectedCustomActionSubcategoryKey,
-                    )?.label
-                  : null) ??
-                  customActionRootEntries.find(
-                    (entry) => entry.key === selectedCustomActionRootKey,
-                  )?.label ??
-                  "No category"}
+              <div>
+                <div className="custom-action-browser__title">
+                  {(hasNestedSubcategories
+                    ? customActionSubcategoryEntries.find(
+                        (entry) => entry.key === selectedCustomActionSubcategoryKey,
+                      )?.label
+                    : null) ??
+                    customActionRootEntries.find(
+                      (entry) => entry.key === selectedCustomActionRootKey,
+                    )?.label ??
+                    "No category"}
+                </div>
+                {customActionLibraryView === "local" ? (
+                  <div className="custom-action-browser__status">
+                    {localLibraryDirectoryName
+                      ? `Local folder access granted: ${localLibraryDirectoryName}`
+                      : supportsLocalFolderAccess
+                        ? "Grant folder access to read custom-action files directly from disk."
+                        : "Direct local folder access requires a Chromium-based browser."}
+                  </div>
+                ) : (
+                  <div className="custom-action-browser__status">
+                    Script-baked custom actions saved inside the loaded PSC document.
+                  </div>
+                )}
               </div>
               <div className="custom-action-list__meta">
                 {selectedCustomActionRows.length} actions
               </div>
             </div>
 
+            {localLibraryNotice ? (
+              <div className="custom-action-browser__notice">{localLibraryNotice}</div>
+            ) : null}
+            {localLibraryError ? (
+              <div className="custom-action-browser__error">{localLibraryError}</div>
+            ) : null}
+
             <div className="custom-action-table">
               <div className="custom-action-table__head">
                 <span>Action</span>
                 <span>Path</span>
+                <span>Source</span>
                 <span>Roots</span>
               </div>
 
               <div className="custom-action-table__body">
-                {selectedCustomActionRows.map((action) => {
+                {selectedCustomActionRows.length === 0 ? (
+                  <div className="custom-action-browser__empty custom-action-browser__empty--table">
+                    {customActionLibraryView === "local"
+                      ? localLibraryDirectoryName
+                        ? "No local custom actions matched this category."
+                        : supportsLocalFolderAccess
+                          ? "Grant folder access to browse local custom-action files."
+                          : "Direct local folder access is unavailable in this browser."
+                      : "No script-baked custom actions matched this category."}
+                  </div>
+                ) : selectedCustomActionRows.map((action) => {
                   const entity = customActions[action.customActionId];
+                  const source = customActionSources[action.customActionId];
+                  const hasEmbeddedCopy = Boolean(embeddedCustomActions[action.customActionId]);
                   if (!entity) {
                     return null;
                   }
@@ -996,6 +1174,15 @@ export const ScriptTree = ({ getNodeLabel }: ScriptTreeProps) => {
                     >
                       <span>{action.leafLabel}</span>
                       <span>{action.relativePath || action.categoryLabel}</span>
+                      <span>
+                        {customActionLibraryView === "local"
+                          ? hasEmbeddedCopy
+                            ? "Local Copy"
+                            : "Local Only"
+                          : source?.source === "local"
+                            ? "Baked, Overridden"
+                            : "Script Baked"}
+                      </span>
                       <span>{entity.rootNodeIds.length}</span>
                     </button>
                   );
@@ -1018,6 +1205,10 @@ export const ScriptTree = ({ getNodeLabel }: ScriptTreeProps) => {
                 ? "Open selected actions"
                 : "Open custom action"}
             </button>
+          ) : isReadOnlyTree ? (
+            <button className="context-menu__item" disabled>
+              Local custom actions are read-only
+            </button>
           ) : (
             <>
               <button className="context-menu__item" onClick={copySelectedContextNodes}>
@@ -1032,69 +1223,148 @@ export const ScriptTree = ({ getNodeLabel }: ScriptTreeProps) => {
       ) : null}
 
       {activeTabId === "customActions" ? null : (
-        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-          <div className="tree-viewport" ref={containerRef}>
-            <div
-              className="tree-viewport__inner"
-              style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
-            >
-              {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                const item = visibleNodes[virtualRow.index];
-                const node = nodeIndex[item.editorId];
-                const label = getNodeLabel(item.editorId);
-                const dragHint =
-                  node.raw.id === "COMMENT"
-                    ? undefined
-                    : formatTreeNodeLabel(node, customActions) !== label
-                      ? formatTreeNodeLabel(node, customActions)
-                      : undefined;
-                const customActionTargetId =
-                  typeof node.raw.id === "string" && node.raw.id.startsWith("CUSTOM_")
-                    ? node.raw.id.slice("CUSTOM_".length)
-                    : null;
+        <>
+          {isReadOnlyTree ? (
+            <div className="tree-help">Local custom action content is read-only.</div>
+          ) : null}
+          {isReadOnlyTree ? (
+            <div className="tree-viewport" ref={containerRef}>
+              <div
+                className="tree-viewport__inner"
+                style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+              >
+                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                  const item = visibleNodes[virtualRow.index];
+                  const node = visibleNodeIndex[item.editorId];
+                  if (!node) {
+                    return null;
+                  }
 
-                return (
-                  <div
-                    key={item.editorId}
-                    className="tree-virtual-row"
-                    style={{ transform: `translateY(${virtualRow.start}px)` }}
-                  >
-                    <TreeRow
-                      editorId={item.editorId}
-                      node={node}
-                      depth={item.depth}
-                      selected={selectedTreeNodeIds.includes(item.editorId)}
-                      collapsed={Boolean(collapsedNodeIds[item.editorId])}
-                      label={label}
-                      dragHint={dragHint}
-                      isCustomActionNode={Boolean(customActionTargetId)}
-                      onSelect={(event) => {
-                        if (event.button === 2) {
-                          return;
+                  const label = getNodeLabel(item.editorId, visibleNodeIndex);
+                  const dragHint =
+                    node.raw.id === "COMMENT"
+                      ? undefined
+                      : formatTreeNodeLabel(node, customActions) !== label
+                        ? formatTreeNodeLabel(node, customActions)
+                        : undefined;
+                  const customActionTargetId =
+                    typeof node.raw.id === "string" && node.raw.id.startsWith("CUSTOM_")
+                      ? node.raw.id.slice("CUSTOM_".length)
+                      : null;
+
+                  return (
+                    <div
+                      key={item.editorId}
+                      className="tree-virtual-row"
+                      style={{ transform: `translateY(${virtualRow.start}px)` }}
+                    >
+                      <TreeRow
+                        editorId={item.editorId}
+                        node={node}
+                        depth={item.depth}
+                        selected={selectedTreeNodeIds.includes(item.editorId)}
+                        collapsed={Boolean(collapsedNodeIds[item.editorId])}
+                        label={label}
+                        dragHint={dragHint}
+                        isCustomActionNode={Boolean(customActionTargetId)}
+                        onSelect={(event) => {
+                          if (event.button === 2) {
+                            return;
+                          }
+                          applyTreeSelection(item.editorId, event);
+                          setContextMenuState(null);
+                        }}
+                        onToggle={() => toggleNodeCollapsed(item.editorId)}
+                        onDoubleClick={
+                          customActionTargetId && customActions[customActionTargetId]
+                            ? () => openCustomActionTab(customActionTargetId)
+                            : undefined
                         }
-                        applyTreeSelection(item.editorId, event);
-                        setContextMenuState(null);
-                      }}
-                      onToggle={() => toggleNodeCollapsed(item.editorId)}
-                      onDoubleClick={
-                        customActionTargetId && customActions[customActionTargetId]
-                          ? () => openCustomActionTab(customActionTargetId)
-                          : undefined
-                      }
-                      onContextMenu={(event) => handleTreeNodeContextMenu(event, item.editorId)}
-                    />
-                  </div>
-                );
-              })}
+                        onContextMenu={(event) => handleTreeNodeContextMenu(event, item.editorId)}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          ) : (
+            <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+              <div className="tree-viewport" ref={containerRef}>
+                <div
+                  className="tree-viewport__inner"
+                  style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+                >
+                  {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                    const item = visibleNodes[virtualRow.index];
+                    const node = visibleNodeIndex[item.editorId];
+                    if (!node) {
+                      return null;
+                    }
 
-          <DragOverlay>
-            {selectedNodeLabel ? (
-              <div className="tree-row tree-row--overlay">{selectedNodeLabel}</div>
-            ) : null}
-          </DragOverlay>
-        </DndContext>
+                    const label = getNodeLabel(item.editorId, visibleNodeIndex);
+                    const dragHint =
+                      node.raw.id === "COMMENT"
+                        ? undefined
+                        : formatTreeNodeLabel(node, customActions) !== label
+                          ? formatTreeNodeLabel(node, customActions)
+                          : undefined;
+                    const customActionTargetId =
+                      typeof node.raw.id === "string" && node.raw.id.startsWith("CUSTOM_")
+                        ? node.raw.id.slice("CUSTOM_".length)
+                        : null;
+
+                    return (
+                      <div
+                        key={item.editorId}
+                        className="tree-virtual-row"
+                        style={{ transform: `translateY(${virtualRow.start}px)` }}
+                      >
+                        <TreeRow
+                          editorId={item.editorId}
+                          node={node}
+                          depth={item.depth}
+                          selected={selectedTreeNodeIds.includes(item.editorId)}
+                          collapsed={Boolean(collapsedNodeIds[item.editorId])}
+                          label={label}
+                          dragHint={dragHint}
+                          isCustomActionNode={Boolean(customActionTargetId)}
+                          onSelect={(event) => {
+                            if (event.button === 2) {
+                              return;
+                            }
+                            applyTreeSelection(item.editorId, event);
+                            setContextMenuState(null);
+                          }}
+                          onToggle={() => toggleNodeCollapsed(item.editorId)}
+                          onDoubleClick={
+                            customActionTargetId && customActions[customActionTargetId]
+                              ? () => openCustomActionTab(customActionTargetId)
+                              : undefined
+                          }
+                          onContextMenu={(event) =>
+                            handleTreeNodeContextMenu(event, item.editorId)
+                          }
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <DragOverlay
+                adjustScale={false}
+                dropAnimation={{
+                  duration: 90,
+                  easing: "cubic-bezier(0.2, 0, 0, 1)",
+                }}
+              >
+                {selectedNodeLabel ? (
+                  <div className="tree-row tree-row--overlay">{selectedNodeLabel}</div>
+                ) : null}
+              </DragOverlay>
+            </DndContext>
+          )}
+        </>
       )}
     </section>
   );

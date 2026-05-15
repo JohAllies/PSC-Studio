@@ -36,4 +36,23 @@ describe("warning engine", () => {
       ),
     ).toBe(true);
   });
+
+  it("accepts external custom action ids when checking call targets", () => {
+    const warnings = analyzeDocumentWarnings(
+      {
+        name: "local-custom-action-fixture",
+        actions: [{ id: "CUSTOM_local-action" }],
+        customActions: {},
+      },
+      {
+        "local-action": true,
+      },
+    );
+
+    expect(
+      warnings.some((warning) =>
+        warning.message.includes("does not match an embedded custom action definition"),
+      ),
+    ).toBe(false);
+  });
 });

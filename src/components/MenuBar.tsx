@@ -6,11 +6,6 @@ import type {
 } from "../lib/psc/catalog";
 import type { PscNode } from "../types/psc";
 
-type SampleOption = {
-  id: string;
-  label: string;
-};
-
 type MenuBarProps = {
   sourceName: string;
   hasCatalog: boolean;
@@ -18,13 +13,10 @@ type MenuBarProps = {
   accountEmail: string | null;
   onOpenFile: () => void;
   onSaveFile: () => void;
-  onSaveToAccount: () => void;
-  onExportFile: () => void;
   onOpenCloudLibrary: () => void;
+  onOpenSettings: () => void;
   onSignOut: () => void;
-  onLoadSample: (sampleId: string) => void;
   onInsertCatalogNode: (node: PscNode) => void;
-  samples: SampleOption[];
 };
 
 const fallbackSections = [
@@ -95,13 +87,10 @@ export const MenuBar = ({
   accountEmail,
   onOpenFile,
   onSaveFile,
-  onSaveToAccount,
-  onExportFile,
   onOpenCloudLibrary,
+  onOpenSettings,
   onSignOut,
-  onLoadSample,
   onInsertCatalogNode,
-  samples,
 }: MenuBarProps) => {
   const [hoveredMenuKey, setHoveredMenuKey] = useState<string | null>(null);
   const closeTimerRef = useRef<number | null>(null);
@@ -278,34 +267,12 @@ export const MenuBar = ({
           <button className="app-button app-button--menu" onClick={onSaveFile}>
             Save
           </button>
-          <button className="app-button app-button--menu" onClick={onExportFile}>
-            Export
-          </button>
-          <button className="app-button app-button--menu" onClick={onSaveToAccount}>
-            Save to account
-          </button>
           <button className="app-button app-button--menu" onClick={onOpenCloudLibrary}>
             My Scripts
           </button>
-
-          <DropdownMenu.Root>
-            <DropdownMenu.Trigger asChild>
-              <button className="app-button app-button--menu">Samples</button>
-            </DropdownMenu.Trigger>
-            <DropdownMenu.Portal>
-              <DropdownMenu.Content className="dropdown-content" sideOffset={6}>
-                {samples.map((sample) => (
-                  <DropdownMenu.Item
-                    key={sample.id}
-                    className="dropdown-item"
-                    onSelect={() => onLoadSample(sample.id)}
-                  >
-                    {sample.label}
-                  </DropdownMenu.Item>
-                ))}
-              </DropdownMenu.Content>
-            </DropdownMenu.Portal>
-          </DropdownMenu.Root>
+          <button className="app-button app-button--menu" onClick={onOpenSettings}>
+            Settings
+          </button>
 
           <span className={`pill pill--menu${hasCatalog ? " pill--success" : ""}`}>
             {hasCatalog ? "PSCFunctions loaded" : "Raw mode"}

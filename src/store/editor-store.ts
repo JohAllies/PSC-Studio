@@ -40,6 +40,7 @@ type EditorStoreState = ParsedDocument & {
   invalidEditKeys: Record<string, true>;
   invalidEditCount: number;
   undoStack: PscDocument[];
+  externalCustomActionIds: Record<string, true>;
 };
 
 type EditorStoreActions = {
@@ -98,6 +99,7 @@ type EditorStoreActions = {
   ) => void;
   updateDocumentField: (field: string, value: unknown) => void;
   updateImageAsset: (imageKey: string, value: string) => void;
+  setExternalCustomActionIds: (customActionIds: string[]) => void;
   undo: () => void;
 };
 
@@ -223,12 +225,23 @@ const createInitialState = (): EditorStoreState => {
     invalidEditKeys: {},
     invalidEditCount: 0,
     undoStack: [],
+    externalCustomActionIds: {},
   };
 };
 
+const buildAvailableCustomActions = (draft: EditorStoreState) => ({
+  ...Object.fromEntries(
+    Object.keys(draft.customActions).map((customActionId) => [customActionId, true]),
+  ),
+  ...draft.externalCustomActionIds,
+});
+
+const serializeEffectiveDocument = (draft: EditorStoreState) =>
+  serializeParsedDocument(draft);
+
 const refreshWarnings = (draft: EditorStoreState) => {
-  const document = serializeParsedDocument(draft);
-  draft.warnings = analyzeDocumentWarnings(document);
+  const document = serializeEffectiveDocument(draft);
+  draft.warnings = analyzeDocumentWarnings(document, buildAvailableCustomActions(draft));
 };
 
 const markDirty = (draft: EditorStoreState) => {
@@ -253,7 +266,12 @@ const restoreDocumentState = (
   draft.images = parsed.images;
   draft.topLevelFields = parsed.topLevelFields;
   draft.topLevelOrder = parsed.topLevelOrder;
-  draft.warnings = analyzeDocumentWarnings(document);
+  draft.warnings = analyzeDocumentWarnings(document, {
+    ...Object.fromEntries(
+      Object.keys(parsed.customActions).map((customActionId) => [customActionId, true]),
+    ),
+    ...draft.externalCustomActionIds,
+  });
   draft.selection = { kind: "document" };
   draft.activeTabId = "actions";
   draft.openCustomActionTabIds = [];
@@ -332,13 +350,18 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   ...createInitialState(),
 
   loadDocument: (document, sourceName = document.name as string | undefined) =>
-    set(() => {
+    set((state) => {
       const parsed = parseDocument(document);
 
       return {
         ...parsed,
         documentSourceName: sourceName ?? "Loaded PSC Script",
-        warnings: analyzeDocumentWarnings(document),
+        warnings: analyzeDocumentWarnings(document, {
+          ...Object.fromEntries(
+            Object.keys(parsed.customActions).map((customActionId) => [customActionId, true]),
+          ),
+          ...state.externalCustomActionIds,
+        }),
         selection: { kind: "document" },
         activeTabId: "actions",
         openCustomActionTabIds: [],
@@ -354,6 +377,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         invalidEditKeys: {},
         invalidEditCount: 0,
         undoStack: [],
+        externalCustomActionIds: state.externalCustomActionIds,
       };
     }),
 
@@ -400,7 +424,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       ...state,
       savedDocumentText: documentText,
       isDirty: false,
-      warnings: analyzeDocumentWarnings(serializeParsedDocument(state)),
+      warnings: analyzeDocumentWarnings(
+        serializeParsedDocument(state),
+        buildAvailableCustomActions(state),
+      ),
     })),
 
   setPendingEdit: (editKey, pending) =>
@@ -503,10 +530,6 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   openCustomActionTab: (customActionId) =>
     set(
       produce<EditorStoreState>((draft) => {
-        if (!draft.customActions[customActionId]) {
-          return;
-        }
-
         if (!draft.openCustomActionTabIds.includes(customActionId)) {
           draft.openCustomActionTabIds.push(customActionId);
         }
@@ -856,6 +879,16 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         pushUndoSnapshot(draft);
         draft.images[imageKey] = value;
         markDirty(draft);
+        refreshWarnings(draft);
+      }),
+    ),
+
+  setExternalCustomActionIds: (customActionIds) =>
+    set(
+      produce<EditorStoreState>((draft) => {
+        draft.externalCustomActionIds = Object.fromEntries(
+          customActionIds.map((customActionId) => [customActionId, true]),
+        );
         refreshWarnings(draft);
       }),
     ),

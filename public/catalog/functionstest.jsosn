@@ -1,0 +1,3 @@
+// Copy and paste this into your Pandemic's Script Creator editor!
+
+[{"id":"IF_WIDGET_EXISTS","properties":{"Find Widget By":{"class":"Widget","logic":"NONE","type":"TEXT","operator":"GREATER_THAN"}}}]

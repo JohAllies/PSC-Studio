@@ -167,6 +167,15 @@ export const serializeParsedDocument = (parsed: ParsedDocument): PscDocument => 
   return output as PscDocument;
 };
 
+export const serializeCustomActionEntity = (
+  entity: EditorCustomActionEntity,
+  nodeIndex: Record<string, EditorNodeEntity>,
+): PscCustomAction =>
+  ({
+    ...entity.raw,
+    actions: entity.rootNodeIds.map((editorId) => denormalizeNode(editorId, nodeIndex)),
+  }) as PscCustomAction;
+
 export const parseDocumentText = (source: string): PscDocument => {
   const parsed = JSON.parse(source) as PscDocument;
 
